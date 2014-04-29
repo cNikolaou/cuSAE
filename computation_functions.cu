@@ -1,3 +1,10 @@
+/**
+ *
+ *	Author: Chistos Nikolaou
+ *	Date: April 2014
+ * 
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -10,11 +17,13 @@
 
 #define IND(i,j,ld) (((j)*(ld))+(i))
 
+// global variables
+const int blocksize = 512;
 
 __global__ void Sigmoid(const float *a, const int numberOfElements, 
 						float *sa) {
 
-	int index = blockDim.x * blockIdx.x + threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < numberOfElements)
 		sa[index] = 1/(1+expf(-a[index]));
@@ -24,7 +33,7 @@ __global__ void Sigmoid(const float *a, const int numberOfElements,
 __global__ void ComputeAbsDiff(const float *hx, const float *y, int N, 
 							   float *diff) {
 	
-	int index = threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < N)
 		diff[index] = pow(abs(hx[index]-y[index]),2);
@@ -35,7 +44,7 @@ __global__ void ComputeAbsDiff(const float *hx, const float *y, int N,
 __global__ void CompDelta3(const float *y, const float *a3, int length, 
 						   float *delta3) {
 
-	int index = threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < length)
 		delta3[index] = -(y[index]-a3[index])*a3[index]*(1-a3[index]);
@@ -43,7 +52,7 @@ __global__ void CompDelta3(const float *y, const float *a3, int length,
 
 __global__ void CompDelta(const float *a2, int N, float *delta) {
 
-	int index = threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < N)
 		delta[index] = delta[index] * a2[index] * (1-a2[index]); 
@@ -51,7 +60,7 @@ __global__ void CompDelta(const float *a2, int N, float *delta) {
 
 __global__ void SetOnes(int length, float *ones) {
 
-	int index = threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < length)
 		ones[index] = 1.0;
@@ -60,7 +69,7 @@ __global__ void SetOnes(int length, float *ones) {
 
 __global__ void SetZeros(int length, float *zeros) {
 
-	int index = threadIdx.x;
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (index < length)
 		zeros[index] = 0.0;
@@ -70,8 +79,9 @@ __global__ void SetZeros(int length, float *zeros) {
 void ComputeSigmoid(const float *z, int N, float *a) {
 
 	// set a2 = sigmoid(z2)
-	dim3 dimBlock(N,1);
-	dim3 dimGrid(1,1);
+	dim3 dimBlock(blocksize,1);
+	int gridsize = (int) (N/blocksize + 1);
+	dim3 dimGrid(gridsize,1);
 	printf("Create block with %d threads : N in computeSigmoid\n", N);
 	Sigmoid<<<dimGrid, dimBlock>>>(z, N, a);
 
@@ -108,8 +118,9 @@ void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y,
 	float *diff;
 	cudaMalloc((void**)&diff, numberOfRows*numberOfCols*sizeof(float));
 	
-	dim3 dimBlock(N,1);
-	dim3 dimGrid(1,1);
+	dim3 dimBlock(blocksize,1);
+	int gridsize = (int) (N/blocksize + 1);
+	dim3 dimGrid(gridsize,1);
 	printf("Create block with %d threads : N (in computePartCost)\n", N);
 	ComputeAbsDiff<<<dimGrid, dimBlock>>>(hx, y, N, diff);
 	
@@ -122,10 +133,12 @@ void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y,
 	float *onesVec;
 	cudaMalloc((void**)&onesVec, numberOfRows*sizeof(float));
 
-	dim3 onesBlock(numberOfRows, 1);
+	dim3 onesBlock(blocksize, 1);
 	printf("Create block with %d threads : numberOfRows (computePartCost)\n"
 			, numberOfRows);
-	SetOnes<<<dimGrid, onesBlock>>>(numberOfRows,onesVec);
+	gridsize = (int) (numberOfRows/blocksize + 1);
+	dim3 onesGrid(gridsize, 1);
+	SetOnes<<<onesGrid, onesBlock>>>(numberOfRows,onesVec);
 
 //	printReturnedMat(numberOfRows, 1, onesVec);
 
@@ -164,8 +177,9 @@ void CompDelta(cublasHandle_t handle, const float *W2, const float *a2,
 
 	int N = hiddenSize * numberOfExamples;
 
-	dim3 dimBlock(N ,1);
-	dim3 dimGrid(1, 1);
+	dim3 dimBlock(blocksize ,1);
+	int gridsize = (int) (N/blocksize + 1);
+	dim3 dimGrid(gridsize, 1);
 	printf("Create block with %d threads : N in compDelta\n", N);
 	CompDelta<<<dimGrid,dimBlock>>>(a2, N, delta2);
 

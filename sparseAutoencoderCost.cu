@@ -4,10 +4,7 @@
  *	neural network, to adjust its weights properly. It is a vectorized 
  *	implementation in CUDA C. It is a prototype and is only used to test
  *	the CUDA algorithm with a small set of artificial examples (artificial 
- *	dataset and weights).
- * 
- *
- *	compile it with nvcc -lcublas sparseAutoencoderCost.cu
+ *	dataset and weights),
  *
  *
  *	Author: Chistos Nikolaou
@@ -27,7 +24,10 @@
 
 #define IND(i,j,ld) (((j)*(ld))+(i))
 
-// Define functionsi
+// global variables
+const int blocksize = 512;
+
+// Define functions
 void SetInputVars(int thetaLength, int numberOfExamples, int features,
 				  float *theta, float *data);
 void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
@@ -58,10 +58,10 @@ int main(void) {
 	float sparsityParam = 0.1;
 	float beta = 1;
 	int visibleSize, hiddenSize;
-	int numberOfExamples = 3;
+	int numberOfExamples = 10000;
 
-	visibleSize = 10;
-	hiddenSize = 4;
+	visibleSize = 28;
+	hiddenSize = 10;
 
 	// Define matrices
 	float *W1, *W2, *b1, *b2;
@@ -89,7 +89,7 @@ int main(void) {
 		printf("\n");
 		printf("Matrix theta:\n");
 		for(i = 0; i < thetaLength; i++) {
-				printf("theta[%d] = %2.2f \n", i, theta[i]);
+//				printf("theta[%d] = %2.2f \n", i, theta[i]);
 		}
 		printf("\n");
 
@@ -241,9 +241,12 @@ int main(void) {
 
 		ComputePartCost(handle,a3,y,visibleSize,numberOfExamples,partCost);
 
+		int gridsize = 1;
+
 		// Delta
-		dim3 d3Block(visibleSize*numberOfExamples, 1);
-		dim3 dimGrid(1, 1);
+		dim3 d3Block(blocksize, 1);
+		gridsize = (int) (visibleSize*numberOfExamples/blocksize + 1);
+		dim3 dimGrid(gridsize, 1);
 		printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
 													visibleSize*numberOfExamples);
 
@@ -283,8 +286,9 @@ int main(void) {
 		// compute Db1 = sum(delta2,2)
 		cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(float));
 
-		dim3 onesBlock1(numberOfExamples,1);
-		dim3 onesGrid1(1,1);
+		dim3 onesBlock1(blocksize, 1);
+		gridsize = (int) (numberOfExamples/blocksize + 1);
+		dim3 onesGrid1(gridsize,1);
 		printf("Create block with %d threads: numberOfExamples\n", 
 													numberOfExamples);
 		SetOnes<<<onesGrid1, onesBlock1>>>(numberOfExamples,onesVec);
@@ -315,8 +319,9 @@ int main(void) {
 
 		cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(float));
 
-		dim3 onesBlock3(numberOfExamples,1);
-		dim3 onesGrid3(1,1);
+		dim3 onesBlock3(blocksize,1);
+		gridsize = (int) (numberOfExamples/blocksize + 1);
+		dim3 onesGrid3(gridsize,1);
 		SetOnes<<<onesGrid3,onesBlock3>>>(numberOfExamples,onesVec);
 
 		b = 0.0;
