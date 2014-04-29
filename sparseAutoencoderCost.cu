@@ -47,7 +47,8 @@ void compDelta(cublasHandle_t handle, float *W2, float *delta3, float *a2, float
 				int numberOfExamples, int visibleSize);
 __global__ void compDelta3(float *y, float *a3, float *delta3, int length);
 void setGradVec(int visibleSize, int hiddenSize, float *gradVec, float *hostW1grad, float *hostW2grad, float *hostb1grad, float *hostb2grad);
-
+void compWgrad(float *W, int numberOfRows, int numberOfCols, int m);
+void compbgrad(float *b, int numberOfRows, int m);
 
 
 int main(void) {
@@ -233,7 +234,7 @@ int main(void) {
 	dim3 dimGrid(1,1);
 	compDelta3<<<dimGrid,d3Block>>>(y,a3,delta3,visibleSize*numberOfExamples);
 
-	compDelta(handle,W2,delta3,a2,delta2,hiddenSize, visibleSize,numberOfExamples);
+	compDelta(handle,W2,delta3,a2,delta2,hiddenSize,numberOfExamples,visibleSize);
 
 
 
@@ -354,6 +355,11 @@ int main(void) {
 	}
 
 
+	// Set grafient final values
+	compWgrad(hostW1grad, hiddenSize, visibleSize, numberOfExamples);
+	compWgrad(hostW2grad, visibleSize, hiddenSize, numberOfExamples);
+	compbgrad(hostb1grad, hiddenSize, numberOfExamples);
+	compbgrad(hostb2grad, visibleSize, numberOfExamples);
 
 	/* ----- Define the gradient vector (theta grad) ----- */
 
@@ -400,7 +406,7 @@ int main(void) {
 
 	printf("\nPrint matrix Db2:\n");
 	printReturnedMat(visibleSize, 1, Db2);
-
+	
 	printf("\nPrint matrix tempCost:\n");
 	printReturnedMat(1, 1, tempCost);
 
@@ -413,7 +419,7 @@ int main(void) {
 	printf("\nTheta grad vector\n");
 	printf("---------------------\n");
 	for (i = 0; i < thetaLength; i++)
-		printf("i = %d : %f\n", i, gradVec[i]);
+		printf("i = %d : %f\n", i+1, gradVec[i]);
 
 
 
@@ -532,7 +538,8 @@ void compDelta(cublasHandle_t handle, float *W2, float *delta3, float *a2, float
 
 	dim3 dimBlock(N,1);
 	dim3 dimGrid(1,1);
-	compDelta<<<dimBlock, dimGrid>>>(delta2, a2, N);
+	compDelta<<<dimGrid,dimBlock>>>(delta2, a2, N);
+
 }
 
 __global__ void compDelta(float *delta, float *a2, int N) {
@@ -593,7 +600,7 @@ void printReturnedMat(int numberOfRows, int numberOfCols, float *deviceMat) {
 	printf("---------------------------\n");
 	for(i = 0; i < numberOfRows; i++) {
 		for(j = 0; j < numberOfCols; j++) {
-			printf("RetMat[%d,%d] = %1.2f  ", i, j, ret[IND(i,j,numberOfRows)]);
+			printf("RetMat[%d,%d] = %1.3f  ", i, j, ret[IND(i,j,numberOfRows)]);
 		}
 		printf("\n");
 	}
@@ -623,7 +630,7 @@ void setGradVec(int visibleSize, int hiddenSize, float *gradVec, float *hostW1gr
 
 	for(i = 0; i < visibleSize; i++) {
 		for(j = 0; j < hiddenSize; j++) {
-			gradVec[offset + i*hiddenSize + j] = hostW2grad[IND(i,j,visibleSize)];
+			gradVec[offset + i*hiddenSize + j] = hostW2grad[i*hiddenSize+j];
 			printf("position %d , place %f \n", offset + i*hiddenSize + j,  hostW2grad[IND(i,j,visibleSize)]);
 		}
 	}
@@ -635,7 +642,7 @@ void setGradVec(int visibleSize, int hiddenSize, float *gradVec, float *hostW1gr
 	
 	for(i = 0; i < hiddenSize; i++) {
 		for(j = 0; j < 1; j++) {
-			gradVec[offset + i + visibleSize*j] = hostb1grad[IND(i,j,hiddenSize)];
+			gradVec[offset + i + visibleSize*j] = hostb1grad[i];
 			printf("position %d , place %f \n", offset + i + visibleSize*j,  hostb1grad[IND(i,j,hiddenSize)]);
 		}
 	}
@@ -647,7 +654,7 @@ void setGradVec(int visibleSize, int hiddenSize, float *gradVec, float *hostW1gr
 
 	for(i = 0; i < visibleSize; i++) {
 		for(j = 0; j < 1; j++) {
-			gradVec[offset + i + hiddenSize*j] = hostb2grad[IND(i,j,visibleSize)];
+			gradVec[offset + i + hiddenSize*j] = hostb2grad[i];
 			printf("position %d , place %f \n", offset + i + hiddenSize*j,  hostb2grad[IND(i,j,visibleSize)]);
 		}
 	}
@@ -712,6 +719,25 @@ void setHostMatrices(int visibleSize, int hiddenSize, float *theta,
 	printf("\nOffset is %d\n", offset);
 }
 
+void compWgrad(float *W, int numberOfRows, int numberOfCols, int m) {
+
+	int i,j;
+
+	for (i = 0; i < numberOfRows; i++) {
+		for (j = 0; j < numberOfCols; j++) {
+			W[i*numberOfCols + j] = 1/(float)m * W[i*numberOfCols + j];
+		}
+	}
+}
+
+void compbgrad(float *b, int numberOfRows, int m) {
+
+	int i;
+
+	for(i = 0; i < numberOfRows; i++) {
+		b[i] = 1/(float)m * b[i];
+	}
+}
 
 void setInputVars(float *theta, float *data, int thetaLength, int numberOfExamples, int features) 
 {
