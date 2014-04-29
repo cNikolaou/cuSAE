@@ -66,10 +66,10 @@ int main(void) {
 	float sparsityParam = 0.1;
 	float beta = 1;
 	int visibleSize, hiddenSize;
-	int numberOfExamples = 3;
+	int numberOfExamples = 80;
 
-	visibleSize = 10;
-	hiddenSize = 4;
+	visibleSize = 40;
+	hiddenSize = 10;
 
 	// Define matrices
 	float *W1, *W2, *b1, *b2;
@@ -92,11 +92,8 @@ int main(void) {
 
 	printf("\n");
 	printf("Matrix theta:\n");
-	for(i = 0; i < hiddenSize; i++) {
-		for(j = 0; j < visibleSize; j++) {
-			printf("theta[%d,%d] = %2.2f \n", i, j, theta[IND(i,j,hiddenSize)]);
-		}
-//		printf("\n");
+	for(i = 0; i < thetaLength; i++) {
+			printf("theta[%d] = %2.2f \n", i, theta[i]);
 	}
 	printf("\n");
 
@@ -263,25 +260,18 @@ int main(void) {
 	float *onesVec;
 
 	// compute Db1 = sum(delta2,2)
-	cudaStat = cudaMalloc((void**)&onesVec, hiddenSize*sizeof(float));
+	cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(float));
 
-	dim3 onesBlock1(hiddenSize,1);
+	dim3 onesBlock1(numberOfExamples,1);
 	dim3 onesGrid1(1,1);
-	setOnes<<<onesGrid1, onesBlock1>>>(onesVec,hiddenSize);
+	setOnes<<<onesGrid1, onesBlock1>>>(onesVec,numberOfExamples);
 
 	b = 0.0;
 
 	cublasStat = cublasSgemv(handle, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
 							 &a, delta2, hiddenSize, onesVec, 1, &b, Db1, 1);
 
-	cudaFree(onesVec);
-
 	// compute Db2 = sum(delta3,2) 
-	cudaStat = cudaMalloc((void**)&onesVec, visibleSize*sizeof(float));
-
-	dim3 onesBlock2(visibleSize,1);
-	dim3 onesGrid2(1,1);
-	setOnes<<<onesGrid2, onesBlock2>>>(onesVec,visibleSize);
 
 	b = 0.0;
 
@@ -600,7 +590,7 @@ void printReturnedMat(int numberOfRows, int numberOfCols, float *deviceMat) {
 	printf("---------------------------\n");
 	for(i = 0; i < numberOfRows; i++) {
 		for(j = 0; j < numberOfCols; j++) {
-			printf("RetMat[%d,%d] = %1.3f  ", i, j, ret[IND(i,j,numberOfRows)]);
+			printf("RetMat[%d,%d] = %1.2f  ", i, j, ret[IND(i,j,numberOfRows)]);
 		}
 		printf("\n");
 	}
@@ -745,7 +735,10 @@ void setInputVars(float *theta, float *data, int thetaLength, int numberOfExampl
 	int i, j;
 
 	for(i = 0; i < thetaLength; i++) {
-		theta[i] = 0.01*i;
+		if(i < 100) 
+			theta[i] = 0.01*i;
+		else
+			theta[i] = 0.99;
 	}
 
 	for(i = 0; i < features; i++) {
