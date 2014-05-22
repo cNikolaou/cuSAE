@@ -21,6 +21,8 @@
 #include "cublas_v2.h"
 
 #include "computation_functions.h"
+#include "mex.h"
+#include "matrix.h"
 
 #define IND(i,j,ld) (((j)*(ld))+(i))
 
@@ -29,21 +31,41 @@ const int blocksize = 512;
 
 // Define functions
 void SetInputVars(int thetaLength, int numberOfExamples, int features,
-				  float *theta, float *data);
-void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
-					 float *hostW1, float *hostW2, 
-					 float *hostb1, float *hostb2);
+				  double *theta, double *data);
+void SetHostMatrices(int visibleSize, int hiddenSize, double *theta,
+					 double *hostW1, double *hostW2, 
+					 double *hostb1, double *hostb2);
 void TestInputMatValues(int visibleSize, int hiddenSize, 
-						float *W1, float *W2, float *b1, float *b2);
+						double *W1, double *W2, double *b1, double *b2);
 void SetDeviceMatrices(int visibleSize, int hiddenSize,
-				float *hostW1, float *hostW2, float *hostb1, float *hostb2, 
-				float *W1, float *W2, float *b1, float *b2);
+				double *hostW1, double *hostW2, double *hostb1, double *hostb2, 
+				double *W1, double *W2, double *b1, double *b2);
 void SetGradVec(int visibleSize, int hiddenSize, 
-				float *hostW1grad, float *hostW2grad, 
-				float *hostb1grad, float *hostb2grad,
-				float *gradVec);
+				double *hostW1grad, double *hostW2grad, 
+				double *hostb1grad, double *hostb2grad,
+				double *gradVec);
 
-int main(void) {
+void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+
+	double *testTheta;
+
+	testTheta = mxGetPr(prhs[0]); 
+		
+	double *matTheta, *matData;
+	double matLambda, matSparsityParam, matBeta; 
+	int matVisibleSize, matHiddenSize;
+
+	int N = mxGetM(prhs[0]);
+	
+	// save inputs from MATLAB code
+	matTheta =(double*)mxGetPr(prhs[0]);
+	matVisibleSize = (int)mxGetScalar(prhs[1]);
+	matHiddenSize = (int)mxGetScalar(prhs[2]);
+	matLambda = (double)mxGetScalar(prhs[3]);
+	matSparsityParam = (double)mxGetScalar(prhs[4]);
+	matBeta = (double)mxGetScalar(prhs[5]);
+	matData = (double*)mxGetPr(prhs[6]);
+
 
 	// set CUDA variables
 	cudaError_t cudaStat;
@@ -52,26 +74,39 @@ int main(void) {
 
 	cublasCreate(&handle);
 
-	// These are inputs to the MATLAB code
-	float *theta, *data;
-	float lambda = 1;
-	float sparsityParam = 0.1;
-	float beta = 1;
-	int visibleSize, hiddenSize;
-	int numberOfExamples = 10000;
 
-	visibleSize = 28;
-	hiddenSize = 10;
+	// These are inputs to the MATLAB code
+	double *theta, *data;
+	theta = matTheta;
+	data = matData;
+
+	double lambda = matLambda;
+	double sparsityParam = matSparsityParam;
+	double beta = matBeta;		
+	int visibleSize, hiddenSize;
+	int numberOfExamples = mxGetN(prhs[6]);
+
+	visibleSize = matVisibleSize;
+	hiddenSize = matHiddenSize;
+
+	int thetaLength = (2*visibleSize*hiddenSize + hiddenSize + visibleSize);
+
+	
+	double *matCost, *matGradVec;
+
+	plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL);
+	plhs[1] = mxCreateDoubleMatrix(thetaLength, 1, mxREAL);
+	matCost = (double*)mxGetPr(plhs[0]);
+	matGradVec = (double*)mxGetPr(plhs[1]);
 
 	// Define matrices
-	float *W1, *W2, *b1, *b2;
+	double *W1, *W2, *b1, *b2;
 
 	// allocate space for theta vector
-	int thetaLength = (2*visibleSize*hiddenSize + hiddenSize + visibleSize);
-	theta = (float *) malloc(thetaLength * sizeof(*theta));
+	theta = (double *) malloc(thetaLength * sizeof(*theta));
 
 	// allocate host memory for 
-	data = (float *) malloc(numberOfExamples * visibleSize * sizeof(float));
+	data = (double *) malloc(numberOfExamples * visibleSize * sizeof(double));
 
 	// print algorithm's information
 	printf("Visible size = %d, ", visibleSize);
@@ -81,381 +116,389 @@ int main(void) {
 	printf("sparsityParam = %f, ", sparsityParam);
 	printf("thetaLength = %d\n", thetaLength);
 
+	printf("10     ");
+
 	// set inputs for testing
-		SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
+//		SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
 
-		int i,j;
+	int i,j;
 
-		printf("\n");
-		printf("Matrix theta:\n");
-		for(i = 0; i < thetaLength; i++) {
-//				printf("theta[%d] = %2.2f \n", i, theta[i]);
+	for(i = 0; i < thetaLength; i++) {
+		printf("theta_double[%d] = %f \n", i , testTheta[i]);
+	}
+
+	//printf("\n");
+	printf("Matrix theta:\n");
+	for(i = 0; i < thetaLength; i++) {
+			printf("theta[%d] = %2.2f \n", i, theta[i]);
+	}
+	printf("\n");
+
+	printf("DATA matrix\n");
+	for(i = 0; i < visibleSize; i++) {
+		for(j = 0; j < numberOfExamples; j++) {
+			printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
 		}
 		printf("\n");
-
-		printf("DATA matrix\n");
-		for(i = 0; i < visibleSize; i++) {
-			for(j = 0; j < numberOfExamples; j++) {
-//				printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
-			}
-			printf("\n");
-		}
-		printf("\n");
+	}
+	printf("\n");
 
 		
-		/* ----- Set host (weight) matrices from the theta vector ----- */
-		float *hostW1, *hostW2, *hostb1, *hostb2;
-		hostW1 = (float*) malloc(hiddenSize*visibleSize*sizeof(float));
-		hostW2 = (float*) malloc(visibleSize*hiddenSize*sizeof(float));
-		hostb1 = (float*) malloc(hiddenSize*sizeof(float));
-		hostb2 = (float*) malloc(visibleSize*sizeof(float));
+	/* ----- Set host (weight) matrices from the theta vector ----- */
+	double *hostW1, *hostW2, *hostb1, *hostb2;
+	hostW1 = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
+	hostW2 = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
+	hostb1 = (double*) malloc(hiddenSize*sizeof(double));
+	hostb2 = (double*) malloc(visibleSize*sizeof(double));
 
-		SetHostMatrices(visibleSize, hiddenSize, 
-						theta, hostW1, hostW2, hostb1, hostb2);
+	SetHostMatrices(visibleSize, hiddenSize, 
+					theta, hostW1, hostW2, hostb1, hostb2);
 
 		
-		/* ----- Matrix transfer to device ----- */
+	/* ----- Matrix transfer to device ----- */
 
-		// Memory space for W1 matrix
-		cudaStat = cudaMalloc((void**)&W1, visibleSize*hiddenSize*sizeof(float));
-		if(cudaStat != cudaSuccess) {
-			printf("Unable to malloc memory on device for W1.\n");
-			exit(1);
-		}
+	// Memory space for W1 matrix
+	cudaStat = cudaMalloc((void**)&W1, visibleSize*hiddenSize*sizeof(double));
+	if(cudaStat != cudaSuccess) {
+		printf("Unable to malloc memory on device for W1.\n");
+		exit(1);
+	}
 
-		// Memory space for W2 matrix
-		cudaStat = cudaMalloc((void**)&W2, visibleSize*hiddenSize*sizeof(float));
-		if(cudaStat != cudaSuccess) {
-			printf("Unable to malloc memory on device for W2.\n");
-			exit(1);
-		}
+	// Memory space for W2 matrix
+	cudaStat = cudaMalloc((void**)&W2, visibleSize*hiddenSize*sizeof(double));
+	if(cudaStat != cudaSuccess) {
+		printf("Unable to malloc memory on device for W2.\n");
+		exit(1);
+	}
 
-		// Memory space for b1 matrix (vector)
-		cudaStat = cudaMalloc((void**)&b1, hiddenSize*sizeof(float));
-		if(cudaStat != cudaSuccess) {
-			printf("Unable to malloc memory on device for b1.\n");
-			exit(1);
-		}
+	// Memory space for b1 matrix (vector)
+	cudaStat = cudaMalloc((void**)&b1, hiddenSize*sizeof(double));
+	if(cudaStat != cudaSuccess) {
+		printf("Unable to malloc memory on device for b1.\n");
+		exit(1);
+	}
 
-		// Memory space for b2 matrix (vector)
-		cudaStat = cudaMalloc((void**)&b2, visibleSize*sizeof(float));
-		if(cudaStat != cudaSuccess) {
-			printf("Unable to malloc memory on device for b2.\n");
-			exit(1);
-		}
+	// Memory space for b2 matrix (vector)
+	cudaStat = cudaMalloc((void**)&b2, visibleSize*sizeof(double));
+	if(cudaStat != cudaSuccess) {
+		printf("Unable to malloc memory on device for b2.\n");
+		exit(1);
+	}
 
-		SetDeviceMatrices(visibleSize, hiddenSize, 
-						  hostW1, hostW2, hostb1, hostb2, W1, W2, b1, b2);
-
-
-		/* ----- Define host matrices to test the values ----- */
-
-		TestInputMatValues(visibleSize, hiddenSize, W1, W2, b1, b2);
+	SetDeviceMatrices(visibleSize, hiddenSize, 
+					  hostW1, hostW2, hostb1, hostb2, W1, W2, b1, b2);
 
 
-		/* ----- Main program ----- */
+	/* ----- Define host matrices to test the values ----- */
+
+	TestInputMatValues(visibleSize, hiddenSize, W1, W2, b1, b2);
+
+
+	/* ----- Main program ----- */
 		
-		// Device memory allocation for the layer output matrices
-		float *y, *x, *a1, *z2, *a2, *z3, *a3;
+	// Device memory allocation for the layer output matrices
+	double *y, *x, *a1, *z2, *a2, *z3, *a3;
 
-		cudaStat = cudaMalloc((void**)&y, 
-							  visibleSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&x, 
-							  visibleSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&a1, 
-							  visibleSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&z2, 
-							  hiddenSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&a2,
-							  hiddenSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&z3, 
-							  visibleSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&a3, 
-							  visibleSize*numberOfExamples*sizeof(float));
+	cudaStat = cudaMalloc((void**)&y, 
+						  visibleSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&x, 
+						  visibleSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&a1, 
+						  visibleSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&z2, 
+						  hiddenSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&a2,
+						  hiddenSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&z3, 
+						  visibleSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&a3, 
+						  visibleSize*numberOfExamples*sizeof(double));
 
 
-		/* ----- Forward Propagation ----- */
+	/* ----- Forward Propagation ----- */
 
-		float a = 1.0;
-		float b = 1.0;
+	double a = 1.0;
+	double b = 1.0;
 
-		// set input to be equal to data
-		cublasStat = cublasSetMatrix(visibleSize, numberOfExamples, sizeof(float),
-									 data, visibleSize, x, visibleSize);
-		if (cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("Unable to set x equal to input data.\n");
-			exit(1);
-		}
+	// set input to be equal to data
+	cublasStat = cublasSetMatrix(visibleSize, numberOfExamples, sizeof(double),
+								 data, visibleSize, x, visibleSize);
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("Unable to set x equal to input data.\n");
+		exit(1);
+	}
 
-		// set target output y to be equal to inpute x.
-		cublasStat = cublasSetMatrix(visibleSize, numberOfExamples, sizeof(float),
-									 data, visibleSize, y, visibleSize);
-		if (cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("Unable to set y equal to input data (autoencoder).\n");
-			exit(1);
-		}
+	// set target output y to be equal to inpute x.
+	cublasStat = cublasSetMatrix(visibleSize, numberOfExamples, sizeof(double),
+								 data, visibleSize, y, visibleSize);
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("Unable to set y equal to input data (autoencoder).\n");
+		exit(1);
+	}
 
-		// set z2 to repetition of b1 and compute 
-		// z2 = W1*a1 + repmat(b1,1,numberOfExamples)
-		SetRepMat(hostb1, hiddenSize, numberOfExamples, z2);
+	// set z2 to repetition of b1 and compute 
+	// z2 = W1*a1 + repmat(b1,1,numberOfExamples)
+	SetRepMat(hostb1, hiddenSize, numberOfExamples, z2);
 
-		// x equals a1
-		cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, hiddenSize, 
-								 numberOfExamples, visibleSize, &a, W1, hiddenSize,
-								 x, visibleSize, &b, z2, hiddenSize); 
+	// x equals a1
+	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, hiddenSize, 
+							 numberOfExamples, visibleSize, &a, W1, hiddenSize,
+							 x, visibleSize, &b, z2, hiddenSize); 
 		
-		if (cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("Unable to compute z2 = W1*a1 + z2 "); 
-			printf("(=repmat(b1,1,numberOfExamples)).\n");
-		}
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("Unable to compute z2 = W1*a1 + z2 "); 
+		printf("(=repmat(b1,1,numberOfExamples)).\n");
+	}
 
-		ComputeSigmoid(z2,hiddenSize*numberOfExamples,a2);
+	ComputeSigmoid(z2,hiddenSize*numberOfExamples,a2);
 
-		// set z3 to repetition of b2 and compute 
-		// z3 = W2*a2 + repmat(b2,1,numberOfExamples)
-		SetRepMat(hostb2, visibleSize, numberOfExamples, z3);
+	// set z3 to repetition of b2 and compute 
+	// z3 = W2*a2 + repmat(b2,1,numberOfExamples)
+	SetRepMat(hostb2, visibleSize, numberOfExamples, z3);
 
-		cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, visibleSize, 
-								 numberOfExamples, hiddenSize, &a, W2, visibleSize, 
-								 a2, hiddenSize, &b, z3, visibleSize);
+	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, visibleSize, 
+							 numberOfExamples, hiddenSize, &a, W2, visibleSize, 
+							 a2, hiddenSize, &b, z3, visibleSize);
 				
-		if (cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("Unable to compute z3 = W2*a2 + z3 ");
-			printf("=repmap(b2,1,numberOfExamples)).\n");
-		}
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("Unable to compute z3 = W2*a2 + z3 ");
+		printf("=repmap(b2,1,numberOfExamples)).\n");
+	}
 
-		ComputeSigmoid(z3,visibleSize*numberOfExamples,a3);
-
-
-		/* --- Back Propagation ---*/
-
-		// Parital Cost
-		float *partCost, *delta3, *delta2;
-
-		cudaStat = cudaMalloc((void**)&partCost, 
-							  visibleSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&delta2, 
-							  hiddenSize*numberOfExamples*sizeof(float));
-		cudaStat = cudaMalloc((void**)&delta3, 
-							  visibleSize*numberOfExamples*sizeof(float));
-
-		ComputePartCost(handle,a3,y,visibleSize,numberOfExamples,partCost);
-
-		int gridsize = 1;
-
-		// Delta
-		dim3 d3Block(blocksize, 1);
-		gridsize = (int) (visibleSize*numberOfExamples/blocksize + 1);
-		dim3 dimGrid(gridsize, 1);
-		printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
-													visibleSize*numberOfExamples);
-
-		CompDelta3<<<dimGrid,d3Block>>>(y,a3,visibleSize*numberOfExamples,delta3);
-
-		CompDelta(handle,W2,a2, hiddenSize,numberOfExamples,visibleSize,
-				  delta3,delta2);
+	ComputeSigmoid(z3,visibleSize*numberOfExamples,a3);
 
 
+	/* --- Back Propagation ---*/
 
-		/* ----- Compute Error Gradients ----- */
+	// Parital Cost
+	double *partCost, *delta3, *delta2;
 
-		// Device memory allocation for the derivatives of weight matrices
-		float *DW1, *DW2, *Db1, *Db2;
+	cudaStat = cudaMalloc((void**)&partCost, 
+						  visibleSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&delta2, 
+						  hiddenSize*numberOfExamples*sizeof(double));
+	cudaStat = cudaMalloc((void**)&delta3, 
+						  visibleSize*numberOfExamples*sizeof(double));
 
-		cudaStat = cudaMalloc((void**)&DW1, hiddenSize*visibleSize*sizeof(float));
-		cudaStat = cudaMalloc((void**)&Db1, hiddenSize*sizeof(float));
-		cudaStat = cudaMalloc((void**)&DW2, visibleSize*hiddenSize*sizeof(float));
-		cudaStat = cudaMalloc((void**)&Db2, visibleSize*sizeof(float));
+	ComputePartCost(handle,a3,y,visibleSize,numberOfExamples,partCost);
 
+	int gridsize = 1;
 
-		b = 0.0;
+	// Delta
+	dim3 d3Block(blocksize, 1);
+	gridsize = (int) (visibleSize*numberOfExamples/blocksize + 1);
+	dim3 dimGrid(gridsize, 1);
+	//printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
+	//											visibleSize*numberOfExamples);
 
-		// compute DW1 = delta2*a1'
-		cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, hiddenSize, 
-								 visibleSize, numberOfExamples,	&a, delta2, 
-								 hiddenSize, x, visibleSize, &b, DW1, hiddenSize);
+	CompDelta3<<<dimGrid,d3Block>>>(y,a3,visibleSize*numberOfExamples,delta3);
 
-		// compute DW2 = delta3*a2'
-		cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, visibleSize, 
-								 hiddenSize, numberOfExamples, &a, delta3, 
-								 visibleSize, a2, hiddenSize, &b, DW2, visibleSize);
-
-
-		float *onesVec;
-
-		// compute Db1 = sum(delta2,2)
-		cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(float));
-
-		dim3 onesBlock1(blocksize, 1);
-		gridsize = (int) (numberOfExamples/blocksize + 1);
-		dim3 onesGrid1(gridsize,1);
-		printf("Create block with %d threads: numberOfExamples\n", 
-													numberOfExamples);
-		SetOnes<<<onesGrid1, onesBlock1>>>(numberOfExamples,onesVec);
-
-		b = 0.0;
-
-		cublasStat = cublasSgemv(handle, CUBLAS_OP_N, hiddenSize, 
-								 numberOfExamples, &a, delta2, hiddenSize, 
-								 onesVec, 1, &b, Db1, 1);
-
-		// compute Db2 = sum(delta3,2) 
-
-		b = 0.0;
-
-		cublasStat = cublasSgemv(handle, CUBLAS_OP_N, visibleSize, 
-								 numberOfExamples, &a, delta3, visibleSize, 
-								 onesVec, 1, &b, Db2, 1);
-
-		cudaFree(onesVec);
+	CompDelta(handle,W2,a2, hiddenSize,numberOfExamples,visibleSize,
+			  delta3,delta2);
 
 
-		/* ----- Compute Cost ----- */
 
-		float cost, *hostCost, *tempCost;
+	/* ----- Compute Error Gradients ----- */
 
-		cudaStat = cudaMalloc((void**)&tempCost, sizeof(float));
-		hostCost = (float*) malloc(sizeof(float));
+	// Device memory allocation for the derivatives of weight matrices
+	double *DW1, *DW2, *Db1, *Db2;
 
-		cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(float));
+	cudaStat = cudaMalloc((void**)&DW1, hiddenSize*visibleSize*sizeof(double));
+	cudaStat = cudaMalloc((void**)&Db1, hiddenSize*sizeof(double));
+	cudaStat = cudaMalloc((void**)&DW2, visibleSize*hiddenSize*sizeof(double));
+	cudaStat = cudaMalloc((void**)&Db2, visibleSize*sizeof(double));
 
-		dim3 onesBlock3(blocksize,1);
-		gridsize = (int) (numberOfExamples/blocksize + 1);
-		dim3 onesGrid3(gridsize,1);
-		SetOnes<<<onesGrid3,onesBlock3>>>(numberOfExamples,onesVec);
 
-		b = 0.0;
+	b = 0.0;
+
+	// compute DW1 = delta2*a1'
+	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, hiddenSize, 
+							 visibleSize, numberOfExamples,	&a, delta2, 
+							 hiddenSize, x, visibleSize, &b, DW1, hiddenSize);
+
+	// compute DW2 = delta3*a2'
+	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, visibleSize, 
+							 hiddenSize, numberOfExamples, &a, delta3, 
+							 visibleSize, a2, hiddenSize, &b, DW2, visibleSize);
+
+
+	double *onesVec;
+
+	// compute Db1 = sum(delta2,2)
+	cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(double));
+
+	dim3 onesBlock1(blocksize, 1);
+	gridsize = (int) (numberOfExamples/blocksize + 1);
+	dim3 onesGrid1(gridsize,1);
+	//printf("Create block with %d threads: numberOfExamples\n", 
+	//											numberOfExamples);
+	SetOnes<<<onesGrid1, onesBlock1>>>(numberOfExamples,onesVec);
+
+	b = 0.0;
+
+	cublasStat = cublasSgemv(handle, CUBLAS_OP_N, hiddenSize, 
+							 numberOfExamples, &a, delta2, hiddenSize, 
+							 onesVec, 1, &b, Db1, 1);
+
+	// compute Db2 = sum(delta3,2) 
+
+	b = 0.0;
+
+	cublasStat = cublasSgemv(handle, CUBLAS_OP_N, visibleSize, 
+							 numberOfExamples, &a, delta3, visibleSize, 
+							 onesVec, 1, &b, Db2, 1);
+
+	cudaFree(onesVec);
+
+
+	/* ----- Compute Cost ----- */
+
+	double cost, *hostCost, *tempCost;
+
+	cudaStat = cudaMalloc((void**)&tempCost, sizeof(double));
+	hostCost = (double*) malloc(sizeof(double));
+
+	cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(double));
+
+	dim3 onesBlock3(blocksize,1);
+	gridsize = (int) (numberOfExamples/blocksize + 1);
+	dim3 onesGrid3(gridsize,1);
+	SetOnes<<<onesGrid3,onesBlock3>>>(numberOfExamples,onesVec);
+
+	b = 0.0;
 		
-		cublasStat = cublasSgemv(handle, CUBLAS_OP_T, numberOfExamples, 1,
-								 &a, partCost, numberOfExamples, onesVec, 1, 
-								 &b, tempCost, 1);
+	cublasStat = cublasSgemv(handle, CUBLAS_OP_T, numberOfExamples, 1,
+							 &a, partCost, numberOfExamples, onesVec, 1, 
+							 &b, tempCost, 1);
 
-		cudaStat = cudaMemcpy(hostCost, tempCost, sizeof(float), 
-							  cudaMemcpyDeviceToHost);
+	cudaStat = cudaMemcpy(hostCost, tempCost, sizeof(double), 
+						  cudaMemcpyDeviceToHost);
 
-		cost = 1/(float)numberOfExamples * (*hostCost);
-
-
-
-		/* ----- Compute gradients ----- */
-
-		float *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
-
-		hostW1grad = (float*) malloc(hiddenSize*visibleSize*sizeof(float));
-		hostW2grad = (float*) malloc(visibleSize*hiddenSize*sizeof(float));
-		hostb1grad = (float*) malloc(hiddenSize*sizeof(float));
-		hostb2grad = (float*) malloc(visibleSize*sizeof(float));
-
-
-		cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(float), 
-									 DW1, hiddenSize, hostW1grad, hiddenSize);
-
-		if(cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("ERROR;"); 
-			printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
-			exit(1);
-		}
-
-		cublasStat = cublasGetMatrix(visibleSize, hiddenSize, sizeof(float), 
-									 DW2, visibleSize, hostW2grad, visibleSize);
-
-		if(cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("ERROR;"); 
-			printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
-			exit(1);
-		}
-
-		cublasStat = cublasGetMatrix(hiddenSize, 1, sizeof(float), 
-									 Db1, hiddenSize, hostb1grad, hiddenSize);
-
-		if(cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("ERROR;");
-			printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
-			exit(1);
-		}
-
-		cublasStat = cublasGetMatrix(visibleSize, 1, sizeof(float), 
-									 Db2, visibleSize, hostb2grad, visibleSize);
-
-		if(cublasStat != CUBLAS_STATUS_SUCCESS) {
-			printf("ERROR;");
-			printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
-			exit(1);
-		}
-
-
-		// Set grafient final values
-		CompWgrad(hostW1grad, hiddenSize, visibleSize, numberOfExamples);
-		CompWgrad(hostW2grad, visibleSize, hiddenSize, numberOfExamples);
-		Compbgrad(hostb1grad, hiddenSize, numberOfExamples);
-		Compbgrad(hostb2grad, visibleSize, numberOfExamples);
-
-		/* ----- Define the gradient vector (theta grad) ----- */
-
-
-		float *gradVec;
-
-		gradVec = (float*) malloc(thetaLength*sizeof(float));
-
-
-		SetGradVec(visibleSize, hiddenSize, 
-				   hostW1grad, hostW2grad, hostb1grad, hostb2grad,
-				   gradVec);
+	cost = 1/(double)numberOfExamples * (*hostCost);
 
 
 
-		/* ----- Print computed matrices for testing----- */
-	/*	printf("\nPrint matrix z2:\n");
-		PrintReturnedMat(hiddenSize, numberOfExamples, z2);
+	/* ----- Compute gradients ----- */
 
-		printf("\nPrint matrix a2:\n");
-		PrintReturnedMat(hiddenSize, numberOfExamples, a2);
+	double *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
 
-		printf("\nPrint matrix z3:\n");
-		PrintReturnedMat(visibleSize, numberOfExamples, z3);
+	hostW1grad = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
+	hostW2grad = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
+	hostb1grad = (double*) malloc(hiddenSize*sizeof(double));
+	hostb2grad = (double*) malloc(visibleSize*sizeof(double));
 
-		printf("\nPrint matrix a3:\n");
-		PrintReturnedMat(visibleSize, numberOfExamples, a3);
 
-		printf("\nPrint matrix partCost:\n");
-		PrintReturnedMat(numberOfExamples, 1, partCost);
+	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(double), 
+								 DW1, hiddenSize, hostW1grad, hiddenSize);
 
-		printf("\nPrint matrix delta3:\n");
-		PrintReturnedMat(visibleSize, numberOfExamples, delta3);
+	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("ERROR;"); 
+		printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
+		exit(1);
+	}
 
-		printf("\nPrint matrix delta2:\n");
-		PrintReturnedMat(hiddenSize, numberOfExamples, delta2);
+	cublasStat = cublasGetMatrix(visibleSize, hiddenSize, sizeof(double), 
+								 DW2, visibleSize, hostW2grad, visibleSize);
 
-		printf("\nPrint matrix DW1:\n");
-		PrintReturnedMat(hiddenSize, visibleSize, DW1);
+	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("ERROR;"); 
+		printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
+		exit(1);
+	}
+
+	cublasStat = cublasGetMatrix(hiddenSize, 1, sizeof(double), 
+								 Db1, hiddenSize, hostb1grad, hiddenSize);
+
+	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("ERROR;");
+		printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
+		exit(1);
+	}
+
+	cublasStat = cublasGetMatrix(visibleSize, 1, sizeof(double), 
+								 Db2, visibleSize, hostb2grad, visibleSize);
+
+	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("ERROR;");
+		printf("Failed to copy DW1 device matrix to hostW1grad host matrix.\n");
+		exit(1);
+	}
+
+
+	// Set grafient final values
+	CompWgrad(hostW1grad, hiddenSize, visibleSize, numberOfExamples);
+	CompWgrad(hostW2grad, visibleSize, hiddenSize, numberOfExamples);
+	Compbgrad(hostb1grad, hiddenSize, numberOfExamples);
+	Compbgrad(hostb2grad, visibleSize, numberOfExamples);
+
+	/* ----- Define the gradient vector (theta grad) ----- */
+
+
+	double *gradVec;
+
+	gradVec = (double*) malloc(thetaLength*sizeof(double));
+
+
+	SetGradVec(visibleSize, hiddenSize, 
+			   hostW1grad, hostW2grad, hostb1grad, hostb2grad,
+			   gradVec);
+
+
+
+	/* ----- Print computed matrices for testing----- */
+	//printf("\nPrint matrix z2:\n");
+//	PrintReturnedMat(hiddenSize, numberOfExamples, z2);
+
+/*	printf("\nPrint matrix a2:\n");
+	PrintReturnedMat(hiddenSize, numberOfExamples, a2);
+
+	printf("\nPrint matrix z3:\n");
+	PrintReturnedMat(visibleSize, numberOfExamples, z3);
+
+	printf("\nPrint matrix a3:\n");
+	PrintReturnedMat(visibleSize, numberOfExamples, a3);
+
+	printf("\nPrint matrix partCost:\n");
+	PrintReturnedMat(numberOfExamples, 1, partCost);
+
+	printf("\nPrint matrix delta3:\n");
+	PrintReturnedMat(visibleSize, numberOfExamples, delta3);
+
+	printf("\nPrint matrix delta2:\n");
+	PrintReturnedMat(hiddenSize, numberOfExamples, delta2);
+
+	printf("\nPrint matrix DW1:\n");
+	PrintReturnedMat(hiddenSize, visibleSize, DW1);
 		
-		printf("\nPrint matrix DW2:\n");
-		PrintReturnedMat(visibleSize, hiddenSize, DW2);
+	printf("\nPrint matrix DW2:\n");
+	PrintReturnedMat(visibleSize, hiddenSize, DW2);
 
-		printf("\nPrint matrix Db1:\n");
-		PrintReturnedMat(hiddenSize, 1, Db1);
+	printf("\nPrint matrix Db1:\n");
+	PrintReturnedMat(hiddenSize, 1, Db1);
 
-		printf("\nPrint matrix Db2:\n");
-		PrintReturnedMat(visibleSize, 1, Db2);
+	printf("\nPrint matrix Db2:\n");
+	PrintReturnedMat(visibleSize, 1, Db2);
 		
-		printf("\nPrint matrix tempCost:\n");
-		PrintReturnedMat(1, 1, tempCost);
+	printf("\nPrint matrix tempCost:\n");
+	PrintReturnedMat(1, 1, tempCost);
 
-		printf("\nTotal cost is %f\n", cost);
+	printf("\nTotal cost is %f\n", cost);
 	*/
 
 		/* ----- Print grad vectort -----*/
 
 
-		printf("\nTheta grad vector\n");
-		printf("---------------------\n");
+	//printf("\nTheta grad vector\n");
+	//printf("---------------------\n");
 		
-		for (i = 0; i < thetaLength; i++) {
-			printf("i = %d : %f\n", i+1, gradVec[i]);
-		}
+	for (i = 0; i < thetaLength; i++) {
+//		printf("i = %d : %f\n", i+1, gradVec[i]);
+	}
 
 
 
+	*matCost = cost;
+    	matGradVec = gradVec;
 	/* ----- Free allocated memory ----- */
 	cublasDestroy(handle);
 	
@@ -469,7 +512,7 @@ int main(void) {
 
 
 void SetInputVars(int thetaLength, int numberOfExamples, int features,
-				  float *theta, float *data) {
+				  double *theta, double *data) {
 
 	for (int i = 0; i < thetaLength; i++) {
 		if (i < 100) 
@@ -487,13 +530,13 @@ void SetInputVars(int thetaLength, int numberOfExamples, int features,
 }
 
 
-void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
-					 float *hostW1, float *hostW2, 
-					 float *hostb1, float *hostb2) {
+void SetHostMatrices(int visibleSize, int hiddenSize, double *theta,
+					 double *hostW1, double *hostW2, 
+					 double *hostb1, double *hostb2) {
 
 	int offset = 0;
 
-	printf("\nTo hostW1:\n");
+	//printf("\nTo hostW1:\n");
 	
 	for (int i = 0; i < hiddenSize; i++) {
 		for (int j = 0; j < visibleSize; j++) {
@@ -506,7 +549,7 @@ void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
 	offset += hiddenSize*visibleSize;
 
 	
-	printf("\nTo hostW2:\n");
+	//printf("\nTo hostW2:\n");
 
 	for (int i = 0; i < visibleSize; i++) {
 		for (int j = 0; j < hiddenSize; j++) {
@@ -519,7 +562,7 @@ void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
 	offset += hiddenSize*visibleSize;
 
 	
-	printf("\nTo hostb1:\n");
+	//printf("\nTo hostb1:\n");
 
 	for (int i = 0; i < hiddenSize; i++) {
 		for (int j = 0; j < 1; j++) {
@@ -532,7 +575,7 @@ void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
 	offset += hiddenSize;
 
 	
-	printf("\nTo hostb2:\n");
+	//printf("\nTo hostb2:\n");
 	
 	for (int i = 0; i < visibleSize; i++) {
 		for (int j = 0; j < 1; j++) {
@@ -543,23 +586,23 @@ void SetHostMatrices(int visibleSize, int hiddenSize, float *theta,
 	}
 
 	offset += visibleSize;
-	printf("\nOffset is %d\n", offset);
+	//printf("\nOffset is %d\n", offset);
 }
 
 
 void TestInputMatValues(int visibleSize, int hiddenSize, 
-						float *W1, float *W2, float *b1, float *b2) {
+						double *W1, double *W2, double *b1, double *b2) {
 	
 	cublasStatus_t cublasStat;
-	float *hostMat;
+	double *hostMat;
 
 	/* --- Print W1 matrix --- */
 
 	// host memory space allocation fot the W1 matrix
-	hostMat = (float *) malloc(visibleSize*hiddenSize*sizeof(float));
+	hostMat = (double *) malloc(visibleSize*hiddenSize*sizeof(double));
 
 	// get elements for W1 matrix
-	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(float), 
+	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(double), 
 								 W1, hiddenSize, hostMat, hiddenSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to get matrix W1.\n");
@@ -580,10 +623,10 @@ void TestInputMatValues(int visibleSize, int hiddenSize,
 	/* --- Print W2 matrix --- */
 	
 	// host memory space allocation for the W2 matrix
-	hostMat = (float *) malloc(visibleSize*hiddenSize*sizeof(float));
+	hostMat = (double *) malloc(visibleSize*hiddenSize*sizeof(double));
 
 	// get elements for W2 matrix
-	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(float), 
+	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(double), 
 								 W2, hiddenSize, hostMat, hiddenSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to get matrix W2.\n");
@@ -604,10 +647,10 @@ void TestInputMatValues(int visibleSize, int hiddenSize,
 	/* --- Print b1 matrix --- */
 	
 	// host memory allocation foe the b1 matrix (vector)
-	hostMat = (float *) malloc(hiddenSize*sizeof(float));
+	hostMat = (double *) malloc(hiddenSize*sizeof(double));
 
 	// get elements fpr b2 matrix
-	cublasStat = cublasGetMatrix(hiddenSize, 1, sizeof(float), 
+	cublasStat = cublasGetMatrix(hiddenSize, 1, sizeof(double), 
 								 b1, hiddenSize, hostMat, hiddenSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to get matrix b1.\n");
@@ -625,10 +668,10 @@ void TestInputMatValues(int visibleSize, int hiddenSize,
 	/* --- Print b2 matrix --- */
 
 	// host memory allocation for the b2 matrix (vector)
-	hostMat = (float *) malloc(visibleSize*sizeof(float));
+	hostMat = (double *) malloc(visibleSize*sizeof(double));
 
 	// get elements for b2 matrix
-	cublasStat = cublasGetMatrix(visibleSize, 1, sizeof(float), 
+	cublasStat = cublasGetMatrix(visibleSize, 1, sizeof(double), 
 								 b2, visibleSize, hostMat, visibleSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to get matrix b2.\n");
@@ -647,13 +690,13 @@ void TestInputMatValues(int visibleSize, int hiddenSize,
 
 
 void SetDeviceMatrices(int visibleSize, int hiddenSize,
-				float *hostW1, float *hostW2, float *hostb1, float *hostb2, 
-				float *W1, float *W2, float *b1, float *b2) {
+				double *hostW1, double *hostW2, double *hostb1, double *hostb2, 
+				double *W1, double *W2, double *b1, double *b2) {
 
 	cublasStatus_t cublasStat;		
 
 	// Set W1 device matrix
-	cublasStat = cublasSetMatrix(hiddenSize, visibleSize, sizeof(float), 
+	cublasStat = cublasSetMatrix(hiddenSize, visibleSize, sizeof(double), 
 						     	 hostW1, hiddenSize, W1, hiddenSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to create matrix W1.\n");
@@ -661,7 +704,7 @@ void SetDeviceMatrices(int visibleSize, int hiddenSize,
 	}
 
 	// Set W2 device matrix
-	cublasStat = cublasSetMatrix(visibleSize, hiddenSize, sizeof(float), 
+	cublasStat = cublasSetMatrix(visibleSize, hiddenSize, sizeof(double), 
 								 hostW2, visibleSize, W2, visibleSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to create matrix W2.\n");
@@ -669,7 +712,7 @@ void SetDeviceMatrices(int visibleSize, int hiddenSize,
 	}
 	
 	// Set b1 device matrix (vector)
-	cublasStat = cublasSetMatrix(hiddenSize, 1, sizeof(float), 
+	cublasStat = cublasSetMatrix(hiddenSize, 1, sizeof(double), 
 								 hostb1, hiddenSize, b1, hiddenSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to create matrix b1.\n");
@@ -677,7 +720,7 @@ void SetDeviceMatrices(int visibleSize, int hiddenSize,
 	}
 
 	// Set b2 device matrix (vector)
-	cublasStat = cublasSetMatrix(visibleSize, 1, sizeof(float), 
+	cublasStat = cublasSetMatrix(visibleSize, 1, sizeof(double), 
 								 hostb2, visibleSize, b2, visibleSize);
 	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("Unable to create matrix b2.\n");
@@ -688,61 +731,61 @@ void SetDeviceMatrices(int visibleSize, int hiddenSize,
 
 
 void SetGradVec(int visibleSize, int hiddenSize, 
-				float *hostW1grad, float *hostW2grad, 
-				float *hostb1grad, float *hostb2grad,
-				float *gradVec) {
+				double *hostW1grad, double *hostW2grad, 
+				double *hostb1grad, double *hostb2grad,
+				double *gradVec) {
 
 
 	int offset = 0;
 
-	printf("\nFrom hostW1grad:\n");
+	//printf("\nFrom hostW1grad:\n");
 	
 	for (int i = 0; i < hiddenSize; i++) {
 		for (int j = 0; j < visibleSize; j++) {
 			gradVec[i*visibleSize+j] = hostW1grad[i*visibleSize+j]; 
-			printf("position %d , place %f \n",	i*visibleSize+j,
-				  	hostW1grad[i*visibleSize+j]);
+//			printf("position %d , place %f \n",	i*visibleSize+j,
+//				  	hostW1grad[i*visibleSize+j]);
 		}
 	}
 
 	offset += hiddenSize*visibleSize;
 
-	printf("\nFrom hostW2grad:\n");
+	//printf("\nFrom hostW2grad:\n");
 
 	for (int i = 0; i < visibleSize; i++) {
 		for (int j = 0; j < hiddenSize; j++) {
 			gradVec[offset + i*hiddenSize + j] = hostW2grad[i*hiddenSize+j];
-			printf("position %d , place %f \n", offset + i*hiddenSize + j, 
-				   	hostW2grad[IND(i,j,visibleSize)]);
+//			printf("position %d , place %f \n", offset + i*hiddenSize + j, 
+//				   	hostW2grad[IND(i,j,visibleSize)]);
 		}
 	}
 
 	offset += hiddenSize*visibleSize;
 
 	
-	printf("\nFrom hostb1grad:\n");
+	//printf("\nFrom hostb1grad:\n");
 	
 	for (int i = 0; i < hiddenSize; i++) {
 		for (int j = 0; j < 1; j++) {
 			gradVec[offset + i + visibleSize*j] = hostb1grad[i];
-			printf("position %d , place %f \n",	offset + i + visibleSize*j, 
-				   	hostb1grad[IND(i,j,hiddenSize)]);
+//			printf("position %d , place %f \n",	offset + i + visibleSize*j, 
+//				   	hostb1grad[IND(i,j,hiddenSize)]);
 		}
 	}
 
 	offset += hiddenSize;
 
 	
-	printf("\nFrom hostb2grad:\n");
+	//printf("\nFrom hostb2grad:\n");
 
 	for (int i = 0; i < visibleSize; i++) {
 		for (int j = 0; j < 1; j++) {
 			gradVec[offset + i + hiddenSize*j] = hostb2grad[i];
-			printf("position %d , place %f \n", offset + i + hiddenSize*j, 
-				   	hostb2grad[IND(i,j,visibleSize)]);
+//			printf("position %d , place %f \n", offset + i + hiddenSize*j, 
+//				   	hostb2grad[IND(i,j,visibleSize)]);
 		}
 	}
 
 	offset += visibleSize;
-	printf("\nOffset is %d\n", offset);
+	//printf("\nOffset is %d\n", offset);
 }

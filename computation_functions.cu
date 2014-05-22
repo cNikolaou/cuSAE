@@ -20,8 +20,8 @@
 // global variables
 const int blocksize = 512;
 
-__global__ void Sigmoid(const float *a, const int numberOfElements, 
-						float *sa) {
+__global__ void Sigmoid(const double *a, const int numberOfElements, 
+						double *sa) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -30,8 +30,8 @@ __global__ void Sigmoid(const float *a, const int numberOfElements,
 
 }
 
-__global__ void ComputeAbsDiff(const float *hx, const float *y, int N, 
-							   float *diff) {
+__global__ void ComputeAbsDiff(const double *hx, const double *y, int N, 
+							   double *diff) {
 	
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -41,8 +41,8 @@ __global__ void ComputeAbsDiff(const float *hx, const float *y, int N,
 
 
 
-__global__ void CompDelta3(const float *y, const float *a3, int length, 
-						   float *delta3) {
+__global__ void CompDelta3(const double *y, const double *a3, int length, 
+						   double *delta3) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -50,7 +50,7 @@ __global__ void CompDelta3(const float *y, const float *a3, int length,
 		delta3[index] = -(y[index]-a3[index])*a3[index]*(1-a3[index]);
 }
 
-__global__ void CompDelta(const float *a2, int N, float *delta) {
+__global__ void CompDelta(const double *a2, int N, double *delta) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -58,7 +58,7 @@ __global__ void CompDelta(const float *a2, int N, float *delta) {
 		delta[index] = delta[index] * a2[index] * (1-a2[index]); 
 }
 
-__global__ void SetOnes(int length, float *ones) {
+__global__ void SetOnes(int length, double *ones) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -67,7 +67,7 @@ __global__ void SetOnes(int length, float *ones) {
 
 }
 
-__global__ void SetZeros(int length, float *zeros) {
+__global__ void SetZeros(int length, double *zeros) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -76,21 +76,21 @@ __global__ void SetZeros(int length, float *zeros) {
 
 }
 
-void ComputeSigmoid(const float *z, int N, float *a) {
+void ComputeSigmoid(const double *z, int N, double *a) {
 
 	// set a2 = sigmoid(z2)
 	dim3 dimBlock(blocksize,1);
 	int gridsize = (int) (N/blocksize + 1);
 	dim3 dimGrid(gridsize,1);
-	printf("Create block with %d threads : N in computeSigmoid\n", N);
+	//printf("Create block with %d threads : N in computeSigmoid\n", N);
 	Sigmoid<<<dimGrid, dimBlock>>>(z, N, a);
 
 }
-void SetRepMat(const float *b, int numberOfRows, int numberOfCols, float *z) {
+void SetRepMat(const double *b, int numberOfRows, int numberOfCols, double *z) {
 	
 //	printf("Size: %d, %d\n", numberOfRows, numberOfCols);
-	float *temp;
-	temp = (float *) malloc(numberOfRows*numberOfCols*sizeof(float));
+	double *temp;
+	temp = (double *) malloc(numberOfRows*numberOfCols*sizeof(double));
 
 	for (int i = 0; i < numberOfRows; i++)  {
 		for (int j = 0; j < numberOfCols; j++) {
@@ -99,7 +99,7 @@ void SetRepMat(const float *b, int numberOfRows, int numberOfCols, float *z) {
 		}
 	}
 
-	if (cublasSetMatrix(numberOfRows, numberOfCols, sizeof(float), 
+	if (cublasSetMatrix(numberOfRows, numberOfCols, sizeof(double), 
 			temp, numberOfRows, z, numberOfRows) != CUBLAS_STATUS_SUCCESS) {
 
 		printf("ERROR; Cannot set repetition matrix z this time.\n");
@@ -108,20 +108,20 @@ void SetRepMat(const float *b, int numberOfRows, int numberOfCols, float *z) {
 
 	free(temp);
 }
-void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y, 
-					 int numberOfRows, int numberOfCols, float *partCost) {
+void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y, 
+					 int numberOfRows, int numberOfCols, double *partCost) {
 
 	/* --- Compute the squared absolute difference of the two matrices --- */
 
 	int N = numberOfRows*numberOfCols;
 
-	float *diff;
-	cudaMalloc((void**)&diff, numberOfRows*numberOfCols*sizeof(float));
+	double *diff;
+	cudaMalloc((void**)&diff, numberOfRows*numberOfCols*sizeof(double));
 	
 	dim3 dimBlock(blocksize,1);
 	int gridsize = (int) (N/blocksize + 1);
 	dim3 dimGrid(gridsize,1);
-	printf("Create block with %d threads : N (in computePartCost)\n", N);
+	//printf("Create block with %d threads : N (in computePartCost)\n", N);
 	ComputeAbsDiff<<<dimGrid, dimBlock>>>(hx, y, N, diff);
 	
 //	printf("\nPrint matrix abs(hx-y).^2\n");
@@ -130,12 +130,12 @@ void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y,
 
 	/* --- Define a vector with ones --- */
 
-	float *onesVec;
-	cudaMalloc((void**)&onesVec, numberOfRows*sizeof(float));
+	double *onesVec;
+	cudaMalloc((void**)&onesVec, numberOfRows*sizeof(double));
 
 	dim3 onesBlock(blocksize, 1);
-	printf("Create block with %d threads : numberOfRows (computePartCost)\n"
-			, numberOfRows);
+	//printf("Create block with %d threads : numberOfRows (computePartCost)\n"
+	//		, numberOfRows);
 	gridsize = (int) (numberOfRows/blocksize + 1);
 	dim3 onesGrid(gridsize, 1);
 	SetOnes<<<onesGrid, onesBlock>>>(numberOfRows,onesVec);
@@ -145,8 +145,8 @@ void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y,
 
 	/* --- Compute the sum of each column of the diff matrix ---*/
 
-	float a = 0.5;
-	float b = 0.0;
+	double a = 0.5;
+	double b = 0.0;
 	
 //	dim3 zerosBlock(numberOfCols,1);
 //	setZeros<<<dimGrid, zerosBlock>>>(partCost, numberOfCols);
@@ -163,13 +163,13 @@ void ComputePartCost(cublasHandle_t handle, const float *hx, const float *y,
 
 
 
-void CompDelta(cublasHandle_t handle, const float *W2, const float *a2, 
+void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
 			   int hiddenSize, int numberOfExamples, int visibleSize, 
-			   float *delta3, float *delta2) {
+			   double *delta3, double *delta2) {
 
 	// compute W2'*delta3	
-	float a = 1.0;
-	float b = 0.0;
+	double a = 1.0;
+	double b = 0.0;
 
 	cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
 				visibleSize, &a, W2, visibleSize, delta3, visibleSize, &b, 
@@ -180,38 +180,38 @@ void CompDelta(cublasHandle_t handle, const float *W2, const float *a2,
 	dim3 dimBlock(blocksize ,1);
 	int gridsize = (int) (N/blocksize + 1);
 	dim3 dimGrid(gridsize, 1);
-	printf("Create block with %d threads : N in compDelta\n", N);
+	//printf("Create block with %d threads : N in compDelta\n", N);
 	CompDelta<<<dimGrid,dimBlock>>>(a2, N, delta2);
 
 }
 
-void CompWgrad(float *W, int numberOfRows, int numberOfCols, int m) {
+void CompWgrad(double *W, int numberOfRows, int numberOfCols, int m) {
 
 	int i,j;
 
 	for (i = 0; i < numberOfRows; i++) {
 		for (j = 0; j < numberOfCols; j++) {
-			W[i*numberOfCols + j] = 1/(float)m * W[i*numberOfCols + j];
+			W[i*numberOfCols + j] = 1/(double)m * W[i*numberOfCols + j];
 		}
 	}
 }
 
-void Compbgrad(float *b, int numberOfRows, int m) {
+void Compbgrad(double *b, int numberOfRows, int m) {
 
 	int i;
 
 	for(i = 0; i < numberOfRows; i++) {
-		b[i] = 1/(float)m * b[i];
+		b[i] = 1/(double)m * b[i];
 	}
 }
 
 void PrintReturnedMat(int numberOfRows, int numberOfCols, 
-					  const float *deviceMat) {
+					  const double *deviceMat) {
 
-	float *ret;
-	ret = (float *) malloc(numberOfRows*numberOfCols*sizeof(float));
+	double *ret;
+	ret = (double *) malloc(numberOfRows*numberOfCols*sizeof(double));
 
-	if (cublasGetMatrix(numberOfRows, numberOfCols, sizeof(float), 
+	if (cublasGetMatrix(numberOfRows, numberOfCols, sizeof(double), 
 						deviceMat, numberOfRows, ret, numberOfRows) 
 						!= CUBLAS_STATUS_SUCCESS) {
 
