@@ -2,13 +2,13 @@
  * 
  *	This program computes the cost and the gradients of a sparse autoencoder
  *	neural network, to adjust its weights properly. It is a vectorized 
- *	implementation in CUDA C. It is a prototype and is only used to test
- *	the CUDA algorithm with a small set of artificial examples (artificial 
- *	dataset and weights),
+ *	implementation in CUDA C. It is can be called by a MATLAB(R) code file
+ *	and will sufficiently compute the cost function and its gradient with
+ *	respect to each weight variable.
  *
  *
  *	Author: Chistos Nikolaou
- *	Date: April 2014
+ *	Date: April-May 2014
  * 
  */
 

@@ -1,7 +1,13 @@
 /**
+ * 
+ *	This file contains a part of the computation functions that are needed to 
+ *	sufficiently compute the cost function and it's grandient with respect to
+ *	each network's weight variable. These functions are called from the main 
+ *	(or equivalently the mexFunction() function) in the sparseAutoencoderCost.cu file.
+ *
  *
  *	Author: Chistos Nikolaou
- *	Date: April 2014
+ *	Date: April-May 2014
  * 
  */
 

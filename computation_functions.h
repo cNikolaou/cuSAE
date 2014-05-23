@@ -1,3 +1,14 @@
+/**
+ *
+ *	This is the header file for the functions' declaration. More information
+ *	on the computation_functions.h file.
+ *
+ *
+ *	Author: Christos Nikolaou
+ *	Date: April-May 2014
+ *
+ */
+
 #ifndef CUSAE_SRC_COMPUTATION_FUNCTIONS_H
 #define CUSAE_SRC_COMPUTATION_FUNCTIONS_H
 
