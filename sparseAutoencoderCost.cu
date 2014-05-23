@@ -114,14 +114,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 //	data = (double *) malloc(numberOfExamples * visibleSize * sizeof(double));
 
 	// print algorithm's information
-	printf("Visible size = %d, ", visibleSize);
+/*	printf("Visible size = %d, ", visibleSize);
 	printf("hidden size = %d, ", hiddenSize);
 	printf("lambda = %f, ", lambda);
 	printf("beta = %f, ", beta); 
 	printf("sparsityParam = %f, ", sparsityParam);
 	printf("thetaLength = %d\n", thetaLength);
-
-	printf("10     ");
+*/
+//	printf("10     ");
 
 	// set inputs for testing
 //		SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
@@ -129,24 +129,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	int i,j;
 
 	for(i = 0; i < thetaLength; i++) {
-		printf("theta_double[%d] = %f \n", i , testTheta[i]);
+//		printf("theta_double[%d] = %f \n", i , testTheta[i]);
 	}
 
 	//printf("\n");
-	printf("Matrix theta:\n");
+//	printf("Matrix theta:\n");
 	for(i = 0; i < thetaLength; i++) {
-			printf("theta[%d] = %2.2f \n", i, theta[i]);
+//			printf("theta[%d] = %2.2f \n", i, theta[i]);
 	}
-	printf("\n");
+//	printf("\n");
 
-	printf("DATA matrix\n");
+//	printf("DATA matrix\n");
 	for(i = 0; i < visibleSize; i++) {
 		for(j = 0; j < numberOfExamples; j++) {
-			printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
+//			printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
 		}
-		printf("\n");
+//		printf("\n");
 	}
-	printf("\n");
+//	printf("\n");
 
 		
 	/* ----- Set host (weight) matrices from the theta vector ----- */
@@ -196,7 +196,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	/* ----- Define host matrices to test the values ----- */
 
-	TestInputMatValues(visibleSize, hiddenSize, W1, W2, b1, b2);
+//	TestInputMatValues(visibleSize, hiddenSize, W1, W2, b1, b2);
 
 
 	/* ----- Main program ----- */
@@ -499,7 +499,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	matGradVec = mxGetPr(plhs[1]);
 		
 	for (i = 0; i < thetaLength; i++) {
-		printf("i = %d : %f\n", i+1, gradVec[i]);
+//		printf("i = %d : %f\n", i+1, gradVec[i]);
 		matGradVec[i] = gradVec[i];
 	}
 

@@ -43,14 +43,14 @@ figure(1);
 
 patches = sampleIMAGES(patchsize, numpatches);
 display_network(patches(:,randi(size(patches,2),200,1)),8);
-
+%{
 visibleSize = 28;
 patches = patches(1:visibleSize,1:10);
 hiddenSize = 2;
+%}
 
 %  Obtain random parameters theta
-theta = initializeParameters(hiddenSize, visibleSize)
-%theta = 0.5*ones(hiddenSize, visibleSize);
+theta = initializeParameters(hiddenSize, visibleSize);
 
 %%======================================================================
 %% STEP 2: Implement sparseAutoencoderCost
@@ -82,7 +82,7 @@ theta = initializeParameters(hiddenSize, visibleSize)
 [cost, grad] = sparseAutoencoderCost(theta, visibleSize, hiddenSize, lambda, ...
                                      sparsityParam, beta, patches);
 
-%
+%{
 %%======================================================================
 %% STEP 3: Gradient Checking
 %
@@ -122,7 +122,7 @@ disp(diff); % Should be small. In our implementation, these values are
 %  sparseAutoencoderCost is correct, You can start training your sparse
 %  autoencoder with minFunc (L-BFGS).
 
-%{
+%
 %  Randomly initialize the parameters
 theta = initializeParameters(hiddenSize, visibleSize);
 
@@ -133,10 +133,10 @@ options.Method = 'lbfgs'; % Here, we use L-BFGS to optimize our cost
                           % need a function pointer with two outputs: the
                           % function value and the gradient. In our problem,
                           % sparseAutoencoderCost.m satisfies this.
-options.maxIter = 1;	  % Maximum number of iterations of L-BFGS to run 
+options.maxIter = 400;	  % Maximum number of iterations of L-BFGS to run 
 options.display = 'on';
-%}
-%{
+
+
 [opttheta, cost] = minFunc( @(p) sparseAutoencoderCost(p, ...
                                    visibleSize, hiddenSize, ...
                                    lambda, sparsityParam, ...
