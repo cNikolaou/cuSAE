@@ -151,7 +151,7 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 //	dim3 zerosBlock(numberOfCols,1);
 //	setZeros<<<dimGrid, zerosBlock>>>(partCost, numberOfCols);
 
-	cublasSgemv(handle, CUBLAS_OP_T, numberOfRows, numberOfCols, 
+	cublasDgemv(handle, CUBLAS_OP_T, numberOfRows, numberOfCols, 
 				&a, diff, numberOfRows, onesVec, 1, &b,
 				partCost, 1);	
 
@@ -171,7 +171,7 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 	double a = 1.0;
 	double b = 0.0;
 
-	cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
+	cublasDgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
 				visibleSize, &a, W2, visibleSize, delta3, visibleSize, &b, 
 				delta2, hiddenSize);
 

@@ -58,14 +58,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	int N = mxGetM(prhs[0]);
 	
 	// save inputs from MATLAB code
-	matTheta =(double*)mxGetPr(prhs[0]);
+	matTheta = mxGetPr(prhs[0]);
 	matVisibleSize = (int)mxGetScalar(prhs[1]);
 	matHiddenSize = (int)mxGetScalar(prhs[2]);
 	matLambda = (double)mxGetScalar(prhs[3]);
 	matSparsityParam = (double)mxGetScalar(prhs[4]);
 	matBeta = (double)mxGetScalar(prhs[5]);
-	matData = (double*)mxGetPr(prhs[6]);
+	matData = mxGetPr(prhs[6]);
 
+
+	
 
 	// set CUDA variables
 	cudaError_t cudaStat;
@@ -96,17 +98,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL);
 	plhs[1] = mxCreateDoubleMatrix(thetaLength, 1, mxREAL);
+
 	matCost = (double*)mxGetPr(plhs[0]);
-	matGradVec = (double*)mxGetPr(plhs[1]);
+//	matGradVec = (double*)mxGetPr(plhs[1]);	
+
+//	matGradVec = (double*) malloc(thetaLength*sizeof(*double));
 
 	// Define matrices
 	double *W1, *W2, *b1, *b2;
 
 	// allocate space for theta vector
-	theta = (double *) malloc(thetaLength * sizeof(*theta));
+//	theta = (double *) malloc(thetaLength * sizeof(*theta));
 
 	// allocate host memory for 
-	data = (double *) malloc(numberOfExamples * visibleSize * sizeof(double));
+//	data = (double *) malloc(numberOfExamples * visibleSize * sizeof(double));
 
 	// print algorithm's information
 	printf("Visible size = %d, ", visibleSize);
@@ -241,7 +246,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	SetRepMat(hostb1, hiddenSize, numberOfExamples, z2);
 
 	// x equals a1
-	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, hiddenSize, 
+	cublasStat = cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, hiddenSize, 
 							 numberOfExamples, visibleSize, &a, W1, hiddenSize,
 							 x, visibleSize, &b, z2, hiddenSize); 
 		
@@ -256,7 +261,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	// z3 = W2*a2 + repmat(b2,1,numberOfExamples)
 	SetRepMat(hostb2, visibleSize, numberOfExamples, z3);
 
-	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, visibleSize, 
+	cublasStat = cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, visibleSize, 
 							 numberOfExamples, hiddenSize, &a, W2, visibleSize, 
 							 a2, hiddenSize, &b, z3, visibleSize);
 				
@@ -312,12 +317,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	b = 0.0;
 
 	// compute DW1 = delta2*a1'
-	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, hiddenSize, 
+	cublasStat = cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, hiddenSize, 
 							 visibleSize, numberOfExamples,	&a, delta2, 
 							 hiddenSize, x, visibleSize, &b, DW1, hiddenSize);
 
 	// compute DW2 = delta3*a2'
-	cublasStat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, visibleSize, 
+	cublasStat = cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, visibleSize, 
 							 hiddenSize, numberOfExamples, &a, delta3, 
 							 visibleSize, a2, hiddenSize, &b, DW2, visibleSize);
 
@@ -336,7 +341,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	b = 0.0;
 
-	cublasStat = cublasSgemv(handle, CUBLAS_OP_N, hiddenSize, 
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_N, hiddenSize, 
 							 numberOfExamples, &a, delta2, hiddenSize, 
 							 onesVec, 1, &b, Db1, 1);
 
@@ -344,7 +349,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	b = 0.0;
 
-	cublasStat = cublasSgemv(handle, CUBLAS_OP_N, visibleSize, 
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_N, visibleSize, 
 							 numberOfExamples, &a, delta3, visibleSize, 
 							 onesVec, 1, &b, Db2, 1);
 
@@ -367,7 +372,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	b = 0.0;
 		
-	cublasStat = cublasSgemv(handle, CUBLAS_OP_T, numberOfExamples, 1,
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_T, numberOfExamples, 1,
 							 &a, partCost, numberOfExamples, onesVec, 1, 
 							 &b, tempCost, 1);
 
@@ -490,15 +495,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	//printf("\nTheta grad vector\n");
 	//printf("---------------------\n");
+
+	matGradVec = mxGetPr(plhs[1]);
 		
 	for (i = 0; i < thetaLength; i++) {
-//		printf("i = %d : %f\n", i+1, gradVec[i]);
+		printf("i = %d : %f\n", i+1, gradVec[i]);
+		matGradVec[i] = gradVec[i];
 	}
 
-
+	
 
 	*matCost = cost;
-    	matGradVec = gradVec;
+    	//matGradVec = gradVec;
+	
+//	matGradVec = (double*)mxGetPr(plhs[1]);
+
 	/* ----- Free allocated memory ----- */
 	cublasDestroy(handle);
 	
@@ -742,7 +753,7 @@ void SetGradVec(int visibleSize, int hiddenSize,
 	
 	for (int i = 0; i < hiddenSize; i++) {
 		for (int j = 0; j < visibleSize; j++) {
-			gradVec[i*visibleSize+j] = hostW1grad[i*visibleSize+j]; 
+			gradVec[i*visibleSize+j] = hostW1grad[i+j*hiddenSize]; 
 //			printf("position %d , place %f \n",	i*visibleSize+j,
 //				  	hostW1grad[i*visibleSize+j]);
 		}
@@ -754,7 +765,7 @@ void SetGradVec(int visibleSize, int hiddenSize,
 
 	for (int i = 0; i < visibleSize; i++) {
 		for (int j = 0; j < hiddenSize; j++) {
-			gradVec[offset + i*hiddenSize + j] = hostW2grad[i*hiddenSize+j];
+			gradVec[offset + i*hiddenSize + j] = hostW2grad[i+j*visibleSize];
 //			printf("position %d , place %f \n", offset + i*hiddenSize + j, 
 //				   	hostW2grad[IND(i,j,visibleSize)]);
 		}
