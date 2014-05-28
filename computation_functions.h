@@ -29,8 +29,9 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
 			   int hiddenSize, int numberOfExamples, int visibleSize, 
 			   double *delta3, double *delta2);
-void CompWgrad(double *W, int numberOfRows, int numberOfCols, int m);
-void Compbgrad(double *b, int numberOfRows, int m);
+void CompWgrad(double *DW, int numberOfRows, int numberOfCols, int m, 
+			   int lambda, double *W, double *Wgrad);
+void Compbgrad(double *Db, int numberOfRows, int m, double *bgrad);
 void PrintReturnedMat(int numberOfRows, int numberOfCols, 
 					  const double *deviceMat);
 

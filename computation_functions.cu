@@ -191,23 +191,25 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 
 }
 
-void CompWgrad(double *W, int numberOfRows, int numberOfCols, int m) {
+void CompWgrad(double *DW, int numberOfRows, int numberOfCols, int m, 
+			   int lambda, double *W, double *Wgrad) {
 
 	int i,j;
 
 	for (i = 0; i < numberOfRows; i++) {
 		for (j = 0; j < numberOfCols; j++) {
-			W[i*numberOfCols + j] = 1/(double)m * W[i*numberOfCols + j];
+			Wgrad[i*numberOfCols + j] = 1/(double)m * DW[i*numberOfCols + j] +
+										lambda * W[i*numberOfCols + j];
 		}
 	}
 }
 
-void Compbgrad(double *b, int numberOfRows, int m) {
+void Compbgrad(double *Db, int numberOfRows, int m, double *bgrad) {
 
 	int i;
 
 	for(i = 0; i < numberOfRows; i++) {
-		b[i] = 1/(double)m * b[i];
+		bgrad[i] = 1/(double)m * Db[i];
 	}
 }
 

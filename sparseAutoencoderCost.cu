@@ -29,7 +29,7 @@
 // global variables
 const int blocksize = 512;
 
-// Define functions
+// Declare functions that are defined in this source file
 void SetInputVars(int thetaLength, int numberOfExamples, int features,
 				  double *theta, double *data);
 void SetHostMatrices(int visibleSize, int hiddenSize, double *theta,
@@ -45,6 +45,7 @@ void SetGradVec(int visibleSize, int hiddenSize,
 				double *hostb1grad, double *hostb2grad,
 				double *gradVec);
 
+// main() function that is called by MATLAB(R) code
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	double *testTheta;
@@ -66,9 +67,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	matBeta = (double)mxGetScalar(prhs[5]);
 	matData = mxGetPr(prhs[6]);
 
-
-	
-
 	// set CUDA variables
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
@@ -82,6 +80,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	theta = matTheta;
 	data = matData;
 
+	// declare train variables
 	double lambda = matLambda;
 	double sparsityParam = matSparsityParam;
 	double beta = matBeta;		
@@ -93,7 +92,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	int thetaLength = (2*visibleSize*hiddenSize + hiddenSize + visibleSize);
 
-	
+	// declare output variables - matrices
 	double *matCost, *matGradVec;
 
 	plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL);
@@ -103,9 +102,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 //	matGradVec = (double*)mxGetPr(plhs[1]);	
 
 //	matGradVec = (double*) malloc(thetaLength*sizeof(*double));
-
-	// Define matrices
-	double *W1, *W2, *b1, *b2;
 
 	// allocate space for theta vector
 //	theta = (double *) malloc(thetaLength * sizeof(*theta));
@@ -121,46 +117,66 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	printf("sparsityParam = %f, ", sparsityParam);
 	printf("thetaLength = %d\n", thetaLength);
 */
-//	printf("10     ");
 
-	// set inputs for testing
-//		SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
+	// set inputs for testing if there are no input variables (and the source
+	// file is not called by MATLAB(R) code)
+//	SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
 
 	int i,j;
 
+	// print elements of theta vector
+/*
 	for(i = 0; i < thetaLength; i++) {
-//		printf("theta_double[%d] = %f \n", i , testTheta[i]);
+		printf("theta_double[%d] = %f \n", i , testTheta[i]);
 	}
 
-	//printf("\n");
-//	printf("Matrix theta:\n");
-	for(i = 0; i < thetaLength; i++) {
-//			printf("theta[%d] = %2.2f \n", i, theta[i]);
-	}
-//	printf("\n");
+	printf("\n");
+*/
 
-//	printf("DATA matrix\n");
+	// print elements of theta vector
+/*
+	printf("Matrix theta:\n");
+	for(i = 0; i < thetaLength; i++) {
+			printf("theta[%d] = %2.2f \n", i, theta[i]);
+	}
+	printf("\n");
+*/
+
+	// print elements of the Data matrix
+/*
+	printf("DATA matrix\n");
 	for(i = 0; i < visibleSize; i++) {
 		for(j = 0; j < numberOfExamples; j++) {
-//			printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
+			printf("dat[%d,%d]=%f ", i, j, data[IND(i,j,visibleSize)]);
 		}
-//		printf("\n");
+		printf("\n");
 	}
-//	printf("\n");
+	printf("\n");
+*/
 
-		
+
+	/* ------------------------------------------------------------ */		
 	/* ----- Set host (weight) matrices from the theta vector ----- */
+	/* ------------------------------------------------------------ */		
+
 	double *hostW1, *hostW2, *hostb1, *hostb2;
 	hostW1 = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
 	hostW2 = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
 	hostb1 = (double*) malloc(hiddenSize*sizeof(double));
 	hostb2 = (double*) malloc(visibleSize*sizeof(double));
 
+	// Define host matrices with the right elements from
+	// the theta matrix
 	SetHostMatrices(visibleSize, hiddenSize, 
 					theta, hostW1, hostW2, hostb1, hostb2);
 
-		
+
+	/* ------------------------------------- */	
 	/* ----- Matrix transfer to device ----- */
+	/* ------------------------------------- */	
+
+	// Define device matrices
+	double *W1, *W2, *b1, *b2;
 
 	// Memory space for W1 matrix
 	cudaStat = cudaMalloc((void**)&W1, visibleSize*hiddenSize*sizeof(double));
@@ -194,12 +210,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 					  hostW1, hostW2, hostb1, hostb2, W1, W2, b1, b2);
 
 
+	/* --------------------------------------------------- */
 	/* ----- Define host matrices to test the values ----- */
+	/* --------------------------------------------------- */
 
+	// define host matrices to test values that are
+	// saved into the cuda memry space
 //	TestInputMatValues(visibleSize, hiddenSize, W1, W2, b1, b2);
 
 
+	/* ------------------------ */
 	/* ----- Main program ----- */
+	/* ------------------------ */
 		
 	// Device memory allocation for the layer output matrices
 	double *y, *x, *a1, *z2, *a2, *z3, *a3;
@@ -220,8 +242,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 						  visibleSize*numberOfExamples*sizeof(double));
 
 
+	/* ------------------------------- */
 	/* ----- Forward Propagation ----- */
+	/* ------------------------------- */
 
+	// variables for the CUBLAS functions
 	double a = 1.0;
 	double b = 1.0;
 
@@ -273,9 +298,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	ComputeSigmoid(z3,visibleSize*numberOfExamples,a3);
 
 
-	/* --- Back Propagation ---*/
+	/* ------------------------ */
+	/* --- Back Propagation --- */
+	/* ------------------------ */
 
-	// Parital Cost
+	// Compute partial cost
 	double *partCost, *delta3, *delta2;
 
 	cudaStat = cudaMalloc((void**)&partCost, 
@@ -289,22 +316,26 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	int gridsize = 1;
 
-	// Delta
+	// Comput delta
 	dim3 d3Block(blocksize, 1);
 	gridsize = (int) (visibleSize*numberOfExamples/blocksize + 1);
 	dim3 dimGrid(gridsize, 1);
-	//printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
-	//											visibleSize*numberOfExamples);
-
+	
+	// Print information that might be usefull
+/*
+	printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
+												visibleSize*numberOfExamples);
+*/
 	CompDelta3<<<dimGrid,d3Block>>>(y,a3,visibleSize*numberOfExamples,delta3);
 
 	CompDelta(handle,W2,a2, hiddenSize,numberOfExamples,visibleSize,
 			  delta3,delta2);
 
 
-
+	/* ----------------------------------- */
 	/* ----- Compute Error Gradients ----- */
-
+	/* ----------------------------------- */
+	
 	// Device memory allocation for the derivatives of weight matrices
 	double *DW1, *DW2, *Db1, *Db2;
 
@@ -314,6 +345,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaStat = cudaMalloc((void**)&Db2, visibleSize*sizeof(double));
 
 
+	// define variable for CUBLAS function call
 	b = 0.0;
 
 	// compute DW1 = delta2*a1'
@@ -327,6 +359,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 							 visibleSize, a2, hiddenSize, &b, DW2, visibleSize);
 
 
+	// temporary matrix to compute sum of delta
 	double *onesVec;
 
 	// compute Db1 = sum(delta2,2)
@@ -335,10 +368,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	dim3 onesBlock1(blocksize, 1);
 	gridsize = (int) (numberOfExamples/blocksize + 1);
 	dim3 onesGrid1(gridsize,1);
-	//printf("Create block with %d threads: numberOfExamples\n", 
-	//											numberOfExamples);
+
+	// print information for debugging
+/*	
+	printf("Create block with %d threads: numberOfExamples\n", 
+												numberOfExamples);
+*/
 	SetOnes<<<onesGrid1, onesBlock1>>>(numberOfExamples,onesVec);
 
+	// define variable used for CUBLAS functions
 	b = 0.0;
 
 	cublasStat = cublasDgemv(handle, CUBLAS_OP_N, hiddenSize, 
@@ -356,13 +394,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaFree(onesVec);
 
 
+	/* ------------------------ */
 	/* ----- Compute Cost ----- */
+	/* ------------------------ */
 
+	// define (device and host) cost matrices
 	double cost, *hostCost, *tempCost;
 
+	// allocate the appropriate space
 	cudaStat = cudaMalloc((void**)&tempCost, sizeof(double));
 	hostCost = (double*) malloc(sizeof(double));
 
+	// compute sum(partCost)
 	cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(double));
 
 	dim3 onesBlock3(blocksize,1);
@@ -385,16 +428,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	/* ----- Compute gradients ----- */
 
-	double *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
+	// Host matrices that will take the computed gradients
+	double *hostDW1, *hostDW2, *hostDb1, *hostDb2;
 
-	hostW1grad = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
-	hostW2grad = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
-	hostb1grad = (double*) malloc(hiddenSize*sizeof(double));
-	hostb2grad = (double*) malloc(visibleSize*sizeof(double));
+	hostDW1 = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
+	hostDW2 = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
+	hostDb1 = (double*) malloc(visibleSize*sizeof(double));
+	hostDb2 = (double*) malloc(visibleSize*sizeof(double));
 
 
 	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(double), 
-								 DW1, hiddenSize, hostW1grad, hiddenSize);
+								 DW1, hiddenSize, hostDW1, hiddenSize);
 
 	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("ERROR;"); 
@@ -403,7 +447,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	}
 
 	cublasStat = cublasGetMatrix(visibleSize, hiddenSize, sizeof(double), 
-								 DW2, visibleSize, hostW2grad, visibleSize);
+								 DW2, visibleSize, hostDW2, visibleSize);
 
 	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("ERROR;"); 
@@ -412,7 +456,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	}
 
 	cublasStat = cublasGetMatrix(hiddenSize, 1, sizeof(double), 
-								 Db1, hiddenSize, hostb1grad, hiddenSize);
+								 Db1, hiddenSize, hostDb1, hiddenSize);
 
 	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("ERROR;");
@@ -421,7 +465,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	}
 
 	cublasStat = cublasGetMatrix(visibleSize, 1, sizeof(double), 
-								 Db2, visibleSize, hostb2grad, visibleSize);
+								 Db2, visibleSize, hostDb2, visibleSize);
 
 	if(cublasStat != CUBLAS_STATUS_SUCCESS) {
 		printf("ERROR;");
@@ -429,12 +473,23 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 		exit(1);
 	}
 
+	
+	double *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
 
-	// Set grafient final values
-	CompWgrad(hostW1grad, hiddenSize, visibleSize, numberOfExamples);
-	CompWgrad(hostW2grad, visibleSize, hiddenSize, numberOfExamples);
-	Compbgrad(hostb1grad, hiddenSize, numberOfExamples);
-	Compbgrad(hostb2grad, visibleSize, numberOfExamples);
+	// Host matrices that will hold the final gradient values
+	hostW1grad = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
+	hostW2grad = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
+	hostb1grad = (double*) malloc(hiddenSize*sizeof(double));
+	hostb2grad = (double*) malloc(visibleSize*sizeof(double));
+
+
+	// Set gradient final values
+	CompWgrad(hostDW1, hiddenSize, visibleSize, numberOfExamples, 
+			  lambda, hostW1, hostW1grad);
+	CompWgrad(hostDW2, visibleSize, hiddenSize, numberOfExamples, 
+			  lambda, hostW2, hostW2grad);
+	Compbgrad(hostDb1, hiddenSize, numberOfExamples, hostb1grad);
+	Compbgrad(hostDb2, visibleSize, numberOfExamples, hostb2grad);
 
 	/* ----- Define the gradient vector (theta grad) ----- */
 
