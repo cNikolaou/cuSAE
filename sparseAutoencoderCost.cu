@@ -45,6 +45,13 @@ void SetGradVec(int visibleSize, int hiddenSize,
 				double *hostb1grad, double *hostb2grad,
 				double *gradVec);
 
+/* --- SUBJECT TO CHANGE; TESTING STAGE --- */	
+void squareMatrix(double *mat, int m, int n);
+__global__ void squareElement(double *mat, int size);
+void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sumMat);
+/* --- END SUBJECT TO CHANGE AREA --- */
+
+
 // main() function that is called by MATLAB(R) code
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
@@ -422,13 +429,68 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaStat = cudaMemcpy(hostCost, tempCost, sizeof(double), 
 						  cudaMemcpyDeviceToHost);
 
-	cost = 1/(double)numberOfExamples * (*hostCost);
+
+	/* ------------------------ */
+	/* ----- Compute Cost ----- */
+	/* ------------------------ */
+
+	// Compute the square of the W1 and W2 weight matrices 
+	double *sqrW1, *sqrW2;
+
+	cudaStat = cudaMalloc((void**)&sqrW1, 
+							hiddenSize*inputSize*sizeof(double));
+	cudaStat = cudaMalloc((void**)&sqrW2, 
+							inputSize*hiddenSize*sizeof(double));
+	
+	squareMatrix(sqrW1, hiddenSize, inputSize);
+	squareMatrix(sqrW2, inputSize, hiddenSize);
+
+
+	// Compute the row-wise sum of the (squared) W1 and W2 matrices
+	double *rowSumW1, *rowSumW2; 
+
+	cudaStat = cudaMalloc((void**)&rowSumW1, hiddenSize*sizeof(double));
+	cudaStat = cudaMalloc((void**)&rowSumW2, visibleSize*sizeof(double));
+
+	rowSum(handle, sqrW1, hiddenSize, visibleSize, rowSumW1);
+	rowSum(handle, sqrW2, visibleSize, hiddenSize, rowSumW2);
+
+
+	// Find total sum
+	double *totSumW1, *totSumW2;
+
+	cudaStat = cudaMalloc((void**)&totSumW1, sizeof(double));
+	cudaStat = cudaMalloc((void**)&totSumW2, sizeof(double));
+
+	colSum(handle, rowSumW1, hiddenSize, 1, totSumW1);
+	colSum(handle, rowSumW2, visibleSize, 1, totSumW2);
+
+	// Host variables that will hold the partial sums of the matrices
+	double *partW1Cost, *partW2Cost;
+
+	// allocate memeory space
+	partW1Cost = malloc(sizeof(double));
+	partW2Cost = malloc(sizeof(double));
+	
+	// copy valu for dvice to host
+	cudaStat = cudaMemcpy(partW1Cost, totSumW1, sizeof(double), cudaMemcpyDeviceToHost);
+	cudaStat = cudaMemcpy(partW2Cost, totSumW2, sizeof(double), cudaMemcpyDeviceToHost);
+
+	if (cudaStat != cudaSuccess) {
+		printf("Error while copying the total W1.^2 sum to host.");
+		exit(1);
+	}
+
+	cost = 1/(double)numberOfExamples * (*hostCost); 
+		// + lambda/2 * ((*partW1Cost) + (*partW2Cost));
 
 
 
+	/* ----------------------------- */
 	/* ----- Compute gradients ----- */
+	/* ----------------------------- */
 
-	// Host matrices that will take the computed gradients
+	// Host matrices that will take the DW values
 	double *hostDW1, *hostDW2, *hostDb1, *hostDb2;
 
 	hostDW1 = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
@@ -437,6 +499,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	hostDb2 = (double*) malloc(visibleSize*sizeof(double));
 
 
+	// Get DW matrices from device matrices
+	
 	cublasStat = cublasGetMatrix(hiddenSize, visibleSize, sizeof(double), 
 								 DW1, hiddenSize, hostDW1, hiddenSize);
 
@@ -474,9 +538,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	}
 
 	
-	double *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
+	// Compute the final values of the weight gradients
 
 	// Host matrices that will hold the final gradient values
+	double *hostW1grad, *hostW2grad, *hostb1grad, *hostb2grad;
+
 	hostW1grad = (double*) malloc(hiddenSize*visibleSize*sizeof(double));
 	hostW2grad = (double*) malloc(visibleSize*hiddenSize*sizeof(double));
 	hostb1grad = (double*) malloc(hiddenSize*sizeof(double));
@@ -491,8 +557,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	Compbgrad(hostDb1, hiddenSize, numberOfExamples, hostb1grad);
 	Compbgrad(hostDb2, visibleSize, numberOfExamples, hostb2grad);
 
-	/* ----- Define the gradient vector (theta grad) ----- */
 
+	/* --------------------------------------------------- */
+	/* ----- Define the gradient vector (theta grad) ----- */
+	/* --------------------------------------------------- */
 
 	double *gradVec;
 
@@ -504,12 +572,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 			   gradVec);
 
 
-
+	/* ---------------------------------------------- */
 	/* ----- Print computed matrices for testing----- */
-	//printf("\nPrint matrix z2:\n");
-//	PrintReturnedMat(hiddenSize, numberOfExamples, z2);
+	/* ---------------------------------------------- */
+/*
+	printf("\nPrint matrix z2:\n");
+	PrintReturnedMat(hiddenSize, numberOfExamples, z2);
 
-/*	printf("\nPrint matrix a2:\n");
+	printf("\nPrint matrix a2:\n");
 	PrintReturnedMat(hiddenSize, numberOfExamples, a2);
 
 	printf("\nPrint matrix z3:\n");
@@ -543,29 +613,41 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	PrintReturnedMat(1, 1, tempCost);
 
 	printf("\nTotal cost is %f\n", cost);
-	*/
 
-		/* ----- Print grad vectort -----*/
+*/
+
+	/* ------------------------------ */
+	/* ----- Print grad vectort ----- */
+	/* ------------------------------ */
 
 
-	//printf("\nTheta grad vector\n");
-	//printf("---------------------\n");
+/*
+	printf("\nTheta grad vector\n");
+	printf("---------------------\n");
 
 	matGradVec = mxGetPr(plhs[1]);
 		
 	for (i = 0; i < thetaLength; i++) {
-//		printf("i = %d : %f\n", i+1, gradVec[i]);
+		printf("i = %d : %f\n", i+1, gradVec[i]);
+	}
+*/
+
+	
+	for (i = 0; i < thetaLength; i++) {
 		matGradVec[i] = gradVec[i];
 	}
-
 	
 
 	*matCost = cost;
-    	//matGradVec = gradVec;
+    //matGradVec = gradVec;
 	
 //	matGradVec = (double*)mxGetPr(plhs[1]);
 
+
+	/* --------------------------------- */
 	/* ----- Free allocated memory ----- */
+	/* --------------------------------- */
+
 	cublasDestroy(handle);
 	
 	cudaFree(W1); cudaFree(W2); cudaFree(b1); cudaFree(b2);
@@ -855,3 +937,93 @@ void SetGradVec(int visibleSize, int hiddenSize,
 	offset += visibleSize;
 	//printf("\nOffset is %d\n", offset);
 }
+
+/* --- SUBJECT TO CHANGE; TESTING STAGE --- */	
+void squareMatrix(double *mat, int m, int n) {
+
+	int numberOfElements = m*n;
+
+	dim3 sqrBlock(blocksize,1);
+	int gridsize = (int) (numberOfElements/blocksize + 1);
+	dim3 sqrGrid(gridsize,1);
+	squareElement<<<sqrGrid, sqrBlock>>>(mat, numberOfElements);
+
+};
+
+__global__ void squareElement(double *mat, int size) {
+
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (index < numberOfElements)
+		mat[index] = mat[index]*mat[index];
+
+}
+
+void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sum) {
+
+	cudaError_t cudaStat;
+	cublasStatus_t cublasStat;
+
+	double *onesVec;
+
+	cudaStat = cudaMalloc((void**)&onesVec, n*sizeof(double));
+
+	if (cudaStat != cudaSuccess) {
+		printf("Error while allocation device space\n");
+		printf("for onesVec in rowSum function.\n");
+		exir(1);
+	}
+	
+	dim3 onesBlock(blocksize,1);
+	int gridsize = (int) n/blocksize;
+	dim3 onesGrid(gridsize,1);
+	SetOnes<<<onesGrid, onesBlock>>>(n,onesVec);
+
+	double a = 1.0;
+	double b = 0.0;
+
+	culasStat = cublasDgemv(handle, CUBLAS_OP_N, m, n, 
+							&a, mat, n, onesVec, 1, 
+							&b, sum, 1);
+
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("CUBLAS ERROR; \n");
+		printf("Unbale to compute row-wise sum of the matrix\n");
+		exit(1);
+	}
+}
+
+void rowSum(cublasHandle_t, double *mat, int m, int n, double *sum) {
+
+	cudaError_t cudaStat;
+	cublasStatus_t cublasStat;
+
+	double *onesVec;
+
+	cudaStat = cudaMalloc((void**)&onesVec, m*sizeof(double));
+
+	if (cudaStat != cudaSuccess) {
+		printf("Error while allocation device space\n");
+		printf("for onesVec in rowSum function.\n");
+		exir(1);
+	}
+
+	dim3 onesBlock(blocksize,1);
+	int gridsize = (int) m/blocksize;
+	dim3 onesGrid(gridsize,1);
+	SetOnes<<<onesGrid, onesBlock>>>(onesVec);
+
+	double a = 1.0;
+	double b = 0.0;
+
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_T, m, n, 
+							 &a, mat, n, onesVec, 1, 
+							 &b, sum ,1);
+	
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("CUBLAS ERROR; \n");
+		printf("Unbale to compute row-wise sum of the matrix\n");
+		exit(1);
+	}
+}
+/* --- END SUBJECT TO CHANGE AREA --- */
