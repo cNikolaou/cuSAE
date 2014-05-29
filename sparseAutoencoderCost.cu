@@ -48,7 +48,8 @@ void SetGradVec(int visibleSize, int hiddenSize,
 /* --- SUBJECT TO CHANGE; TESTING STAGE --- */	
 void squareMatrix(double *mat, int m, int n);
 __global__ void squareElement(double *mat, int size);
-void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sumMat);
+void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sum);
+void colSum(cublasHandle_t handle, double *mat, int m, int n, double *sum);
 /* --- END SUBJECT TO CHANGE AREA --- */
 
 
@@ -438,12 +439,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	double *sqrW1, *sqrW2;
 
 	cudaStat = cudaMalloc((void**)&sqrW1, 
-							hiddenSize*inputSize*sizeof(double));
+							hiddenSize*visibleSize*sizeof(double));
 	cudaStat = cudaMalloc((void**)&sqrW2, 
-							inputSize*hiddenSize*sizeof(double));
+							visibleSize*hiddenSize*sizeof(double));
 	
-	squareMatrix(sqrW1, hiddenSize, inputSize);
-	squareMatrix(sqrW2, inputSize, hiddenSize);
+	squareMatrix(sqrW1, hiddenSize, visibleSize);
+	squareMatrix(sqrW2, visibleSize, hiddenSize);
 
 
 	// Compute the row-wise sum of the (squared) W1 and W2 matrices
@@ -469,8 +470,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	double *partW1Cost, *partW2Cost;
 
 	// allocate memeory space
-	partW1Cost = malloc(sizeof(double));
-	partW2Cost = malloc(sizeof(double));
+	partW1Cost = (double*)malloc(sizeof(double));
+	partW2Cost = (double*)malloc(sizeof(double));
 	
 	// copy valu for dvice to host
 	cudaStat = cudaMemcpy(partW1Cost, totSumW1, sizeof(double), cudaMemcpyDeviceToHost);
@@ -950,7 +951,7 @@ void squareMatrix(double *mat, int m, int n) {
 
 };
 
-__global__ void squareElement(double *mat, int size) {
+__global__ void squareElement(double *mat, int numberOfElements) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -971,7 +972,7 @@ void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sum) {
 	if (cudaStat != cudaSuccess) {
 		printf("Error while allocation device space\n");
 		printf("for onesVec in rowSum function.\n");
-		exir(1);
+		exit(1);
 	}
 	
 	dim3 onesBlock(blocksize,1);
@@ -982,7 +983,7 @@ void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sum) {
 	double a = 1.0;
 	double b = 0.0;
 
-	culasStat = cublasDgemv(handle, CUBLAS_OP_N, m, n, 
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_N, m, n, 
 							&a, mat, n, onesVec, 1, 
 							&b, sum, 1);
 
@@ -993,7 +994,7 @@ void rowSum(cublasHandle_t handle, double *mat, int m, int n, double *sum) {
 	}
 }
 
-void rowSum(cublasHandle_t, double *mat, int m, int n, double *sum) {
+void colSum(cublasHandle_t handle, double *mat, int m, int n, double *sum) {
 
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
@@ -1004,14 +1005,14 @@ void rowSum(cublasHandle_t, double *mat, int m, int n, double *sum) {
 
 	if (cudaStat != cudaSuccess) {
 		printf("Error while allocation device space\n");
-		printf("for onesVec in rowSum function.\n");
-		exir(1);
+		printf("for onesVec in colSum function.\n");
+		exit(1);
 	}
 
 	dim3 onesBlock(blocksize,1);
 	int gridsize = (int) m/blocksize;
 	dim3 onesGrid(gridsize,1);
-	SetOnes<<<onesGrid, onesBlock>>>(onesVec);
+	SetOnes<<<onesGrid, onesBlock>>>(m,onesVec);
 
 	double a = 1.0;
 	double b = 0.0;
