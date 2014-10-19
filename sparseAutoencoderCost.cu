@@ -431,13 +431,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	/* ----------------------- */
 	/* ----- Compute rho ----- */
 	/* ----------------------- */
-
+/*
   double *rho;
 
   cudaStat = cudaMalloc((void**)&rho, hiddenSize*sizeof(double));
 
   rowSum(handle, a2, hiddenSIze, numberOfExamples, rho);
-
+*/
 	/* ------------------------ */
 	/* --- Back Propagation --- */
 	/* ------------------------ */
