@@ -3,11 +3,12 @@
  *	This file contains a part of the computation functions that are needed to 
  *	sufficiently compute the cost function and it's grandient with respect to
  *	each network's weight variable. These functions are called from the main 
- *	(or equivalently the mexFunction() function) in the sparseAutoencoderCost.cu file.
+ *	(or equivalently the mexFunction() function) in the 
+ *  sparseAutoencoderCost.cu file.
  *
  *
- *	Author: Chistos Nikolaou
- *	Date: April-May 2014
+ *  Author: Chistos Nikolaou
+ *  Date: April-May 2014
  * 
  */
 
@@ -157,6 +158,7 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 //	dim3 zerosBlock(numberOfCols,1);
 //	setZeros<<<dimGrid, zerosBlock>>>(partCost, numberOfCols);
 
+  //CHECK THIS!!!!
 	cublasDgemv(handle, CUBLAS_OP_T, numberOfRows, numberOfCols, 
 				&a, diff, numberOfRows, onesVec, 1, &b,
 				partCost, 1);	
@@ -191,20 +193,33 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 
 }
 
-void CompWgrad(double *DW, int numberOfRows, int numberOfCols, int m, 
-			   int lambda, double *W, double *Wgrad) {
+void CompWgrad(const double *DW, const int numberOfRows, 
+               const int numberOfCols, const int m, const double lambda, 
+               const double *W, double *Wgrad) {
 
+//  printf("In CompWgrad, lambda = %0.4f\n", lambda);
+  
 	int i,j;
 
 	for (i = 0; i < numberOfRows; i++) {
 		for (j = 0; j < numberOfCols; j++) {
-			Wgrad[i*numberOfCols + j] = 1/(double)m * DW[i*numberOfCols + j] +
-										lambda * W[i*numberOfCols + j];
+      Wgrad[IND(i,j,numberOfRows)] = 1/(double)m * DW[IND(i,j,numberOfRows)] +
+										lambda * W[IND(i,j,numberOfRows)];
+/*      // For testing pursposes
+      printf("%2.3f = %2.3f + %2.3f \n", 
+            Wgrad[IND(i,j,numberOfRows)], 
+            1/(double)m * DW[IND(i,j,numberOfRows)], 
+            lambda * W[IND(i,j,numberOfRows)]);
+*/
+
+//			Wgrad[i*numberOfCols + j] = 1/(double)m * DW[i*numberOfCols + j] +
+//										lambda * W[i*numberOfCols + j];
 		}
 	}
 }
 
-void Compbgrad(double *Db, int numberOfRows, int m, double *bgrad) {
+void Compbgrad(const double *Db, const int numberOfRows, const int m, 
+               double *bgrad) {
 
 	int i;
 
@@ -213,8 +228,23 @@ void Compbgrad(double *Db, int numberOfRows, int m, double *bgrad) {
 	}
 }
 
+void PrintHostMat(int numberOfRows, int numberOfCols,
+                  const double *hostMat) {
+  
+	printf("---------------------------\n");
+	for (int i = 0; i < numberOfRows; i++) {
+		for (int j = 0; j < numberOfCols; j++) {
+			printf("Ret[%d,%d] = %1.3f  ",
+					i, j, hostMat[IND(i,j,numberOfRows)]);
+		}
+		printf("\n");
+	}
+	printf("WARNING: Values are rounded to two decimals\n");
+
+}
+
 void PrintReturnedMat(int numberOfRows, int numberOfCols, 
-					  const double *deviceMat) {
+					            const double *deviceMat) {
 
 	double *ret;
 	ret = (double *) malloc(numberOfRows*numberOfCols*sizeof(double));
@@ -227,17 +257,10 @@ void PrintReturnedMat(int numberOfRows, int numberOfCols,
 		exit(1);
 	}
 
-	printf("---------------------------\n");
-	for (int i = 0; i < numberOfRows; i++) {
-		for (int j = 0; j < numberOfCols; j++) {
-			printf("RetMat[%d,%d] = %1.2f  ",
-					i, j, ret[IND(i,j,numberOfRows)]);
-		}
-		printf("\n");
-	}
-	printf("WARNING: Values are rounded to two decimals\n");
+  PrintHostMat(numberOfRows, numberOfCols, ret);
 
 	free(ret);
 }
+
 
 

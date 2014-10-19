@@ -14,7 +14,7 @@ tic;
 
 %%======================================================================
 %% STEP 0: Parameters values
-
+%
 patchsize = 28;
 numpatches = 10000;
 visibleSize = patchsize^2;   % number of input units 
@@ -23,6 +23,18 @@ sparsityParam = 0.1;		 % desired average activation of the hidden units.
 
 lambda = 3e-3;				% weight decay parameter       
 beta = 3;					% weight of sparsity penalty term       
+%}
+
+% For testing pursposes of the CUDA code
+%{
+patchsize = 3;
+numpatches = 5;
+visibleSize = 10;
+hiddenSize = 4;
+sparsityParam = 0.1;
+lambda = 3e-3;
+beta = 3;
+%}
 
 %%======================================================================
 %% STEP 1: Get images, using the sampleIMAGES function. 
@@ -35,20 +47,38 @@ beta = 3;					% weight of sparsity penalty term
 figure(1);
 % plot 200 randomly selected image patches
 
+
+% For testing pursposes of the CUDA code
+%patches = [0.05*[1:1:10]' 0.07*[1:1:10]' 0.09*[1:1:10]'];
+
 patches = sampleIMAGES(patchsize, numpatches);
 display_network(patches(:,randi(size(patches,2),200,1)),8);
 
 
+%
+% Uncomment these lines if there is a need for gradient checking (Step 3)
+% (faster version for gradient checking)
 %{
-%  Uncomment these lines if there is a need for gradient checking (Step 3)
-visibleSize = 28;
+visibleSize = 6;
 patches = patches(1:visibleSize,1:10);
 hiddenSize = 2;
 %}
 
+% For Gradient checking (second choice - slower)
+%{
+patches = patches(:,1:100);
+hiddenSize = 2;
+%}
+patches = patches(:,1:10000);
+
 
 %  Obtain random parameters theta
+rng(0);
 theta = initializeParameters(hiddenSize, visibleSize);
+
+% For testing pursposes
+%theta = 1/(2*hiddenSize*visibleSize + hiddenSize + visibleSize) * ...
+%          [1:2*hiddenSize*visibleSize + hiddenSize + visibleSize]';
 
 %%======================================================================
 %% STEP 2: Check sparseAutoencoderCost function.
@@ -59,9 +89,13 @@ theta = initializeParameters(hiddenSize, visibleSize);
 %  and/or lambda to zero may be helpful for debugging.)
 %
 
+%display('Start cost');
 [cost, grad] = sparseAutoencoderCost(theta, visibleSize, hiddenSize, lambda, ...
                                      sparsityParam, beta, patches);
-
+%cost
+%grad
+%display('End cost');
+%
 %{
 %%======================================================================
 %% STEP 3: Gradient Checking
@@ -102,11 +136,12 @@ disp(diff); % Should be small. In our implementation, these values are
 %
 %  Start training your sparse autoencoder with minFunc (L-BFGS).
 %
-
+%
 %  Randomly initialize the parameters
 theta = initializeParameters(hiddenSize, visibleSize);
-
+display('Before LBFGS');
 %  Use minFunc to minimize the function
+%
 addpath minFunc/
 options.Method = 'lbfgs'; % Here, we use L-BFGS to optimize our cost
                           % function. Generally, for minFunc to work, you
@@ -116,7 +151,7 @@ options.Method = 'lbfgs'; % Here, we use L-BFGS to optimize our cost
 options.maxIter = 400;	  % Maximum number of iterations of L-BFGS to run 
 options.display = 'on';
 
-
+display('Ready for LBFGS');
 [opttheta, cost] = minFunc( @(p) sparseAutoencoderCost(p, ...
                                    visibleSize, hiddenSize, ...
                                    lambda, sparsityParam, ...
@@ -134,7 +169,7 @@ options.display = 'on';
 				theta, options);
 %}
 
-%{
+%
 %%======================================================================
 %% STEP 5: Visualization 
 
@@ -142,8 +177,9 @@ figure(2);
 
 W1 = reshape(opttheta(1:hiddenSize*visibleSize), hiddenSize, visibleSize);
 display_network(W1', 12); 
+date = datestr(clock);
 
-fname = ['weights-' datestr(clock) '.jpg'];
+fname = ['weights-' date(1:6) '.jpg'];
 
 print -djpeg weights.jpg   % save the visualization to a file 
 
