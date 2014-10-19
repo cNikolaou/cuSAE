@@ -82,7 +82,16 @@ __global__ void SetZeros(int length, double *zeros) {
 		zeros[index] = 0.0;
 
 }
+__global__ void squareElement(const double *mat, const int numberOfElements,
+                              double *matSqr) {
 
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (index < numberOfElements) {
+		matSqr[index] = mat[index]*mat[index];
+  }
+
+}
 void ComputeSigmoid(const double *z, int N, double *a) {
 
 	// set a2 = sigmoid(z2)
@@ -225,6 +234,91 @@ void Compbgrad(const double *Db, const int numberOfRows, const int m,
 
 	for(i = 0; i < numberOfRows; i++) {
 		bgrad[i] = 1/(double)m * Db[i];
+	}
+
+}
+
+void squareMatrix(const double *mat, const int m, const int n, 
+                  double *matSqr) {
+
+	int numberOfElements = m*n;
+
+	dim3 sqrBlock(blocksize,1);
+	int gridsize = (int) (numberOfElements/blocksize + 1);
+	dim3 sqrGrid(gridsize,1);
+	squareElement<<<sqrGrid, sqrBlock>>>(mat, numberOfElements, matSqr);
+
+};
+
+void rowSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, double *sum) {
+
+	cudaError_t cudaStat;
+	cublasStatus_t cublasStat;
+
+	double *onesVec;
+
+	cudaStat = cudaMalloc((void**)&onesVec, n*sizeof(double));
+
+	if (cudaStat != cudaSuccess) {
+		printf("Error while allocation device space\n");
+		printf("for onesVec in rowSum function.\n");
+		exit(1);
+	}
+	
+	dim3 onesBlock(blocksize,1);
+	int gridsize = (int) n/blocksize + 1;
+	dim3 onesGrid(gridsize,1);
+	SetOnes<<<onesGrid, onesBlock>>>(n,onesVec);
+
+	double a = 1.0;
+	double b = 0.0;
+
+
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_N, m, n, 
+							&a, mat, m, onesVec, 1, 
+							&b, sum, 1);
+
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("CUBLAS ERROR; \n");
+		printf("Unbale to compute row-wise sum of the matrix\n");
+		exit(1);
+	}
+}
+
+void colSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, double *sum) {
+
+	cudaError_t cudaStat;
+	cublasStatus_t cublasStat;
+
+	double *onesVec;
+
+	cudaStat = cudaMalloc((void**)&onesVec, m*sizeof(double));
+
+	if (cudaStat != cudaSuccess) {
+		printf("Error while allocation device space\n");
+		printf("for onesVec in colSum function.\n");
+		exit(1);
+	}
+
+	dim3 onesBlock(blocksize,1);
+	int gridsize = (int) m/blocksize + 1;
+	dim3 onesGrid(gridsize,1);
+	SetOnes<<<onesGrid, onesBlock>>>(m,onesVec);
+
+	double a = 1.0;
+	double b = 0.0;
+
+
+	cublasStat = cublasDgemv(handle, CUBLAS_OP_T, m, n, 
+							 &a, mat, m, onesVec, 1, 
+							 &b, sum ,1);
+	
+	if (cublasStat != CUBLAS_STATUS_SUCCESS) {
+		printf("CUBLAS ERROR; \n");
+		printf("Unbale to compute row-wise sum of the matrix\n");
+		exit(1);
 	}
 }
 
