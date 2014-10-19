@@ -250,8 +250,8 @@ void squareMatrix(const double *mat, const int m, const int n,
 
 };
 
-void rowSum(const cublasHandle_t handle, const double *mat, 
-            const int m, const int n, double *sum) {
+void RowSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, const double scale, double *sum) {
 
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
@@ -271,7 +271,7 @@ void rowSum(const cublasHandle_t handle, const double *mat,
 	dim3 onesGrid(gridsize,1);
 	SetOnes<<<onesGrid, onesBlock>>>(n,onesVec);
 
-	double a = 1.0;
+	double a = scale;
 	double b = 0.0;
 
 
@@ -286,8 +286,8 @@ void rowSum(const cublasHandle_t handle, const double *mat,
 	}
 }
 
-void colSum(const cublasHandle_t handle, const double *mat, 
-            const int m, const int n, double *sum) {
+void ColSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, const double scale, double *sum) {
 
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
@@ -307,7 +307,7 @@ void colSum(const cublasHandle_t handle, const double *mat,
 	dim3 onesGrid(gridsize,1);
 	SetOnes<<<onesGrid, onesBlock>>>(m,onesVec);
 
-	double a = 1.0;
+	double a = scale;
 	double b = 0.0;
 
 

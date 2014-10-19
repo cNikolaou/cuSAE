@@ -425,7 +425,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   cudaStat = cudaMalloc((void**)&rho, hiddenSize*sizeof(double));
 
-  rowSum(handle, a2, hiddenSIze, numberOfExamples, rho);
+  RowSum(handle, a2, hiddenSIze, numberOfExamples, 
+          1/(double)numberOfExamples,rho);
 */
 	/* ------------------------ */
 	/* --- Back Propagation --- */
@@ -595,8 +596,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaStat = cudaMalloc((void**)&rowSumW1, hiddenSize*sizeof(double));
 	cudaStat = cudaMalloc((void**)&rowSumW2, visibleSize*sizeof(double));
 
-	rowSum(handle, sqrW1, hiddenSize, visibleSize, rowSumW1);
-	rowSum(handle, sqrW2, visibleSize, hiddenSize, rowSumW2);
+	RowSum(handle, sqrW1, hiddenSize, visibleSize, 1.0, rowSumW1);
+	RowSum(handle, sqrW2, visibleSize, hiddenSize, 1.0, rowSumW2);
 /*
   PrintReturnedMat(hiddenSize, 1, rowSumW1);
   PrintReturnedMat(visibleSize, 1, rowSumW2);
@@ -608,8 +609,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaStat = cudaMalloc((void**)&totSumW1, sizeof(double));
 	cudaStat = cudaMalloc((void**)&totSumW2, sizeof(double));
 
-	colSum(handle, rowSumW1, hiddenSize, 1, totSumW1);
-	colSum(handle, rowSumW2, visibleSize, 1, totSumW2);
+	ColSum(handle, rowSumW1, hiddenSize, 1, 1.0, totSumW1);
+	ColSum(handle, rowSumW2, visibleSize, 1, 1.0, totSumW2);
 /*
   PrintReturnedMat(1, 1, totSumW1);
   PrintReturnedMat(1, 1, totSumW2);

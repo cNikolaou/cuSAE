@@ -38,10 +38,10 @@ void Compbgrad(const double *Db, const int numberOfRows, const int m,
                double *bgrad);
 void squareMatrix(const double *mat, const int m, const int n, 
                   double *matSqr);
-void rowSum(const cublasHandle_t handle, const double *mat, 
-            const int m, const int n, double *sum);
-void colSum(const cublasHandle_t handle, const double *mat, 
-            const int m, const int n, double *sum);
+void RowSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, const double scale, double *sum);
+void ColSum(const cublasHandle_t handle, const double *mat, 
+            const int m, const int n, const double scale, double *sum);
 void PrintHostMat(int numberOfRows, int numberOfCols,
                   const double *hostMat);
 void PrintReturnedMat(int numberOfRows, int numberOfCols, 
