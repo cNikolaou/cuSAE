@@ -398,7 +398,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   PrintReturnedMat(hiddenSize, numberOfExamples, a2);
 
   printf("--- z3 ---\n");
-  PrintReturnedMat(visibleSize, numberOfExamples, a3);
+  PrintReturnedMat(visibleSize, numberOfExamples, z3);
 
   printf("--- a3 ---\n");
   PrintReturnedMat(visibleSize, numberOfExamples, a3);
@@ -420,13 +420,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	/* ----------------------- */
 	/* ----- Compute rho ----- */
 	/* ----------------------- */
-/*
+
   double *rho;
 
   cudaStat = cudaMalloc((void**)&rho, hiddenSize*sizeof(double));
 
-  RowSum(handle, a2, hiddenSIze, numberOfExamples, 
+  RowSum(handle, a2, hiddenSize, numberOfExamples, 
           1/(double)numberOfExamples,rho);
+/*
+  PrintReturnedMat(hiddenSize, 1, rho);
 */
 	/* ------------------------ */
 	/* --- Back Propagation --- */
@@ -459,8 +461,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   CompDelta3<<<dimGrid,d3Block>>>(y,a3,visibleSize*numberOfExamples,delta3);
 
-	CompDelta(handle,W2,a2, hiddenSize,numberOfExamples,visibleSize,
-			  delta3,delta2);
+	CompDelta(handle,W2,a2, hiddenSize, numberOfExamples, visibleSize,
+            rho, sparsityParam, beta, delta3, delta2);
 
 //  PrintReturnedMat(1, numberOfExamples, partCost);
 
@@ -566,10 +568,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	cudaStat = cudaMemcpy(hostCost, tempCost, sizeof(double), 
 						  cudaMemcpyDeviceToHost);
-
+/*
 //  PrintReturnedMat(1, 1, tempCost);
-//  printf("Host Cost = %f \n\n", *hostCost);
-/**/
+  printf("Host Cost = %f \n\n", *hostCost);
+*/
 
 	/* ------------------------ */
 	/* ----- Compute Cost ----- */
@@ -637,8 +639,22 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cost = 1/(double)numberOfExamples * (*hostCost) 
         + lambda/2 * ((*partW1Cost) + (*partW2Cost));
   
-//  printf("Cost!: %f\n",cost);
+//  printf("First Cost: %f\n",cost);
 
+	/* --------------------------- */
+	/* ----- Compute KL Cost ----- */
+	/* --------------------------- */
+
+  double *kl = (double*) malloc(sizeof(double));
+
+  CompKL(handle, sparsityParam, rho, hiddenSize, kl);
+
+  cost = cost + (*kl)*beta;
+  
+/*
+  printf("kl: %f\n", *kl);
+  printf("Total Cost: %f\n", cost);
+*/  
 
 	/* ----------------------------- */
 	/* ----- Compute gradients ----- */
@@ -726,8 +742,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   PrintHostMat(visibleSize, hiddenSize, hostW2grad);
   PrintHostMat(hiddenSize, 1, hostb1grad);
   PrintHostMat(visibleSize, 1, hostb2grad);
-
 */
+
 
 	/* --------------------------------------------------- */
 	/* ----- Define the gradient vector (theta grad) ----- */
@@ -839,6 +855,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaFree(DW1); cudaFree(DW2); cudaFree(Db1); cudaFree(Db2);
 	cudaFree(y); cudaFree(x); cudaFree(a1); cudaFree(z2); cudaFree(a2);
 	cudaFree(z3); cudaFree(a3);
+
+  cudaFree(rho);
 
   cudaFree(tempCost);
 

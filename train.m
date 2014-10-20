@@ -52,24 +52,24 @@ figure(1);
 %patches = [0.05*[1:1:10]' 0.07*[1:1:10]' 0.09*[1:1:10]'];
 
 patches = sampleIMAGES(patchsize, numpatches);
-display_network(patches(:,randi(size(patches,2),200,1)),8);
+%display_network(patches(:,randi(size(patches,2),200,1)),8);
 
 
 %
 % Uncomment these lines if there is a need for gradient checking (Step 3)
 % (faster version for gradient checking)
-%{
-visibleSize = 6;
-patches = patches(1:visibleSize,1:10);
+%
+visibleSize = 100;
+patches = patches(1:visibleSize,1:10000);
 hiddenSize = 2;
 %}
 
 % For Gradient checking (second choice - slower)
 %{
-patches = patches(:,1:100);
+patches = patches(:,1:1000);
 hiddenSize = 2;
 %}
-patches = patches(:,1:10000);
+%patches = patches(:,1:1000);
 
 
 %  Obtain random parameters theta
@@ -92,8 +92,10 @@ theta = initializeParameters(hiddenSize, visibleSize);
 %display('Start cost');
 [cost, grad] = sparseAutoencoderCost(theta, visibleSize, hiddenSize, lambda, ...
                                      sparsityParam, beta, patches);
-%cost
-%grad
+
+
+disp([[1:length(grad)]' grad]);
+cost
 %display('End cost');
 %
 %{
@@ -136,7 +138,7 @@ disp(diff); % Should be small. In our implementation, these values are
 %
 %  Start training your sparse autoencoder with minFunc (L-BFGS).
 %
-%
+%{
 %  Randomly initialize the parameters
 theta = initializeParameters(hiddenSize, visibleSize);
 display('Before LBFGS');
@@ -169,7 +171,7 @@ display('Ready for LBFGS');
 				theta, options);
 %}
 
-%
+%{
 %%======================================================================
 %% STEP 5: Visualization 
 

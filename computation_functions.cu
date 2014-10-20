@@ -46,15 +46,18 @@ __global__ void ComputeAbsDiff(const double *hx, const double *y, int N,
 		diff[index] = pow(abs(hx[index]-y[index]),2);
 }
 
-
-
 __global__ void CompDelta3(const double *y, const double *a3, int length, 
 						   double *delta3) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (index < length)
-		delta3[index] = -(y[index]-a3[index])*a3[index]*(1-a3[index]);
+	if (index < length) {
+		// the order of computations mught have an impact on the final outcome
+    // the last term is a smaller number than the other two so it is 
+    // multiplied after the first to (between 0 and 1) number are multiplied
+    // so they are closer in scale
+    delta3[index] = -a3[index]*(1-a3[index])*(y[index]-a3[index]);
+  }
 }
 
 __global__ void CompDelta(const double *a2, int N, double *delta) {
@@ -102,7 +105,8 @@ void ComputeSigmoid(const double *z, int N, double *a) {
 	Sigmoid<<<dimGrid, dimBlock>>>(z, N, a);
 
 }
-void SetRepMat(const double *b, int numberOfRows, int numberOfCols, double *z) {
+void SetRepMat(const double *b, const int numberOfRows, 
+               const int numberOfCols, double *z) {
 	
 //	printf("Size: %d, %d\n", numberOfRows, numberOfCols);
 	double *temp;
@@ -124,6 +128,28 @@ void SetRepMat(const double *b, int numberOfRows, int numberOfCols, double *z) {
 
 	free(temp);
 }
+
+void DevRepMat(const cublasHandle_t handle,
+               const double *b, const int numberOfRows,
+               const int numberOfCols, double *z) {
+  
+  double alpha = 1.0;
+  double beta = 0.0;
+
+  double *onesVec;
+  cudaMalloc((void**)&onesVec, numberOfCols*sizeof(double));
+  
+  dim3 onesBlock(blocksize, 1);
+  int gridsize = (int) (blocksize/numberOfCols + 1);
+  dim3 onesGrid(gridsize, 1);
+
+  SetOnes<<<onesGrid, onesBlock>>>(numberOfCols, onesVec);
+
+  cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, numberOfRows, numberOfCols,
+              1, &alpha, b, numberOfRows, onesVec, 1, &beta, z, numberOfRows);
+  
+}
+
 void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y, 
 					 int numberOfRows, int numberOfCols, double *partCost) {
 
@@ -178,15 +204,74 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 	cudaFree(onesVec);
 }
 
+__global__ void CompDeltaSecondTerm(const double sparsityParam,
+                                    const double *rho,
+                                    const int N, const double beta,
+                                    double *secondTerm) {
 
+  int idx = threadIdx.x + blockIdx.x*blockDim.x;
 
+  if (idx < N) {
+    secondTerm[idx] = beta*(-sparsityParam/rho[idx] +
+                          (1 - sparsityParam)/(1 - rho[idx])); 
+  }
+
+}
+
+__global__ void CompDelta2(const double sparsityParam,
+                            const double *rho,
+                            const int N, const double beta,
+                            const double *a2,
+                            double *delta2) {
+  
+  int idx = threadIdx.x + blockIdx.x*blockDim.x;
+  int tix = threadIdx.x;
+
+  if (idx < N) {
+    delta2[idx] = (beta*(-sparsityParam/rho[tix] + 
+                  (1 - sparsityParam)/(1 - rho[tix])) +
+                  delta2[idx]) * a2[idx] * (1 - a2[idx]);
+  }
+
+}
+
+/*
 void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
 			   int hiddenSize, int numberOfExamples, int visibleSize, 
-			   double *delta3, double *delta2) {
+         const double *rho, const double sparsityParam, 
+         const double beta, const double *delta3, 
+         double *delta2) {
 
+  //repmat(beta*(-sparsityParam./rho + (1-sparsityParam)./(1-rho)),1,m)).*a2.*(1-a2); 
+  
+  // Compute the second term
+  //-sparsityParam./rho + (1-sparsityParam)./(1-rho)
+
+  double *temp;
+
+  if (cudaSuccess != cudaMalloc((void**)&temp, hiddenSize*sizeof(double))) {
+    printf("ERROR in allocating space for temp vector. In CompDelta.\n");
+  }
+
+  dim3 dimBlockSecondTerm(blocksize, 1); 
+  int gridsize_2 = (int) (hiddenSize/blocksize + 1);
+  dim3 dimGridSecondTerm(gridsize_2, 1);
+
+  CompDeltaSecondTerm<<<dimGridSecondTerm, dimBlockSecondTerm>>>
+                      (sparsityParam, rho, hiddenSize, beta, temp);
+  
+//  PrintReturnedMat(hiddenSize, 1, temp);
+
+  DevRepMat(handle, temp, hiddenSize, numberOfExamples, delta2);
+
+  cudaFree(temp);
+
+//  PrintReturnedMat(hiddenSize, 10, delta2);
+*/
+/**/
 	// compute W2'*delta3	
-	double a = 1.0;
-	double b = 0.0;
+/*	double a = 1.0;
+	double b = 1.0;
 
 	cublasDgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
 				visibleSize, &a, W2, visibleSize, delta3, visibleSize, &b, 
@@ -194,13 +279,41 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 
 	int N = hiddenSize * numberOfExamples;
 
-	dim3 dimBlock(blocksize ,1);
-	int gridsize = (int) (N/blocksize + 1);
-	dim3 dimGrid(gridsize, 1);
+	dim3 dimBlockFirstTerm(blocksize, 1);
+	int gridsize_1 = (int) (N/blocksize + 1);
+	dim3 dimGridFirstTerm(gridsize_1, 1);
 	//printf("Create block with %d threads : N in compDelta\n", N);
-	CompDelta<<<dimGrid,dimBlock>>>(a2, N, delta2);
+	CompDelta<<<dimGridFirstTerm,dimBlockFirstTerm>>>(a2, N, delta2);
+
 
 }
+*/
+
+void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
+			   int hiddenSize, int numberOfExamples, int visibleSize, 
+         const double *rho, const double sparsityParam, 
+         const double beta, const double *delta3, 
+         double *delta2) {
+
+  double a = 1.0;
+	double b = 0.0;
+
+  cublasDgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
+				visibleSize, &a, W2, visibleSize, delta3, visibleSize, &b, 
+				delta2, hiddenSize);
+  
+  dim3 delta2Block(hiddenSize, 1);
+  int gridsize = numberOfExamples;
+  dim3 delta2Grid(gridsize, 1);
+
+  // no need to use it; just in case something changes
+  int N_2 = numberOfExamples*hiddenSize;
+
+  CompDelta2<<<delta2Grid, delta2Block>>>(sparsityParam, rho, N_2,
+                                          beta, a2, delta2);
+
+}
+
 
 void CompWgrad(const double *DW, const int numberOfRows, 
                const int numberOfCols, const int m, const double lambda, 
@@ -236,6 +349,44 @@ void Compbgrad(const double *Db, const int numberOfRows, const int m,
 		bgrad[i] = 1/(double)m * Db[i];
 	}
 
+}
+
+__global__ void CompPartKL(const double sparsityParam, const double *rho,
+                           const int rho_size, double *temp) {
+  
+  int idx = threadIdx.x + blockIdx.x*blockDim.x;
+
+  if (idx < rho_size) {
+    temp[idx] = sparsityParam*log(sparsityParam/rho[idx]) +
+                (1 - sparsityParam)*log((1 - sparsityParam)/(1 - rho[idx]));
+  }
+  
+}
+
+
+void CompKL(const cublasHandle_t handle,
+            const double sparsityParam, const double *rho, 
+            const int rho_size, double *kl) {
+
+  double *temp, *deviceKL;
+  
+  cudaMalloc((void**)&temp, rho_size*sizeof(double)); 
+  cudaMalloc((void**)&deviceKL, sizeof(double));
+
+  dim3 KLblock(blocksize, 1);
+  int gridsize = (int) (blocksize/rho_size + 1);
+  dim3 KLgrid(gridsize, 1);
+
+  CompPartKL<<<KLgrid, KLblock>>>(sparsityParam, rho, rho_size, temp);
+  
+  ColSum(handle, temp, rho_size, 1, 1.0, deviceKL);
+
+//  PrintReturnedMat(1, 1, deviceKL);
+
+  cudaMemcpy(kl, deviceKL, sizeof(double), cudaMemcpyDeviceToHost);
+  
+  cudaFree(temp); cudaFree(deviceKL);
+  
 }
 
 void squareMatrix(const double *mat, const int m, const int n, 
