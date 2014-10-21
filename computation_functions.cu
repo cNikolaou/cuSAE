@@ -404,6 +404,19 @@ void squareMatrix(const double *mat, const int m, const int n,
 void RowSum(const cublasHandle_t handle, const double *mat, 
             const int m, const int n, const double scale, double *sum) {
 
+
+  
+  size_t freeCudaMem, totalCudaMem;
+  
+  if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
+    printf("ERROR while trying to get information about device's memory.\n");
+  } else {
+    printf("Device total memory: %zd \tDevice free memory: %zd\n",
+           totalCudaMem, freeCudaMem);  
+  }
+
+  printf("Try to allocate: %d bytes\n", n);
+
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
 
@@ -414,7 +427,14 @@ void RowSum(const cublasHandle_t handle, const double *mat,
 	if (cudaStat != cudaSuccess) {
 		printf("Error while allocation device space\n");
 		printf("for onesVec in rowSum function.\n");
-		exit(1);
+
+
+    printf("Error is: %s\n", cudaGetErrorString(cudaStat));
+  
+
+
+		exit(1);  
+
 	}
 	
 	dim3 onesBlock(blocksize,1);
@@ -435,6 +455,8 @@ void RowSum(const cublasHandle_t handle, const double *mat,
 		printf("Unbale to compute row-wise sum of the matrix\n");
 		exit(1);
 	}
+
+  cudaFree(onesVec);
 }
 
 void ColSum(const cublasHandle_t handle, const double *mat, 
@@ -450,6 +472,17 @@ void ColSum(const cublasHandle_t handle, const double *mat,
 	if (cudaStat != cudaSuccess) {
 		printf("Error while allocation device space\n");
 		printf("for onesVec in colSum function.\n");
+    printf("Error is: %s\n", cudaGetErrorString(cudaStat));
+
+    size_t freeCudaMem, totalCudaMem;
+  
+    if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
+      printf("ERROR while trying to get information about device's memory.\n");
+    } else {
+      printf("Device total memory: %zd \tDevice free memory: %zd\n",
+             totalCudaMem, freeCudaMem);  
+    }
+
 		exit(1);
 	}
 
@@ -471,6 +504,9 @@ void ColSum(const cublasHandle_t handle, const double *mat,
 		printf("Unbale to compute row-wise sum of the matrix\n");
 		exit(1);
 	}
+
+  
+  cudaFree(onesVec);
 }
 
 void PrintHostMat(int numberOfRows, int numberOfCols,

@@ -59,9 +59,9 @@ patches = sampleIMAGES(patchsize, numpatches);
 % Uncomment these lines if there is a need for gradient checking (Step 3)
 % (faster version for gradient checking)
 %
-visibleSize = 100;
-patches = patches(1:visibleSize,1:10000);
-hiddenSize = 2;
+visibleSize = 250;
+patches = patches(1:visibleSize,1:100);
+hiddenSize = 4;
 %}
 
 % For Gradient checking (second choice - slower)
@@ -94,7 +94,8 @@ theta = initializeParameters(hiddenSize, visibleSize);
                                      sparsityParam, beta, patches);
 
 
-disp([[1:length(grad)]' grad]);
+disp(grad);
+%disp([[1:length(grad)]' grad]);
 cost
 %display('End cost');
 %
