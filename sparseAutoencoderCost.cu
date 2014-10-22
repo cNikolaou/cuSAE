@@ -64,7 +64,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	/* ------------------------------------------------------------ */		
 	/* -------------------- Device Information -------------------- */
 	/* ------------------------------------------------------------ */	
-  
+/*
   size_t freeCudaMem, totalCudaMem;
 
   if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
@@ -73,7 +73,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     printf("Device total memory: %d \tDevice free memory: %d\n",
            totalCudaMem, freeCudaMem);  
   }
-/**/
+*/
 	/* ------------------------------------------------------------ */		
 	/* ---------------------- Set up code ------------------------- */
 	/* ------------------------------------------------------------ */		
@@ -387,7 +387,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	ComputeSigmoid(z3,visibleSize*numberOfExamples,a3);
 
   //CheckMatrixEquality(x, a3, visibleSize, numberOfExamples);
-
+/*
   printf("--- y ---\n");
   PrintReturnedMat(visibleSize, numberOfExamples, y);
   
@@ -402,7 +402,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   printf("--- a3 ---\n");
   PrintReturnedMat(visibleSize, numberOfExamples, a3);
-/**/
+*/
 /*
   printf("--- W1 ---\n");
   PrintReturnedMat(hiddenSize, visibleSize, W1);
@@ -419,7 +419,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   cudaFree(z2); 
   cudaFree(z3);
-  cudaFree(x);
+  cudaFree(a1);
 
 	/* ----------------------- */
 	/* ----- Compute rho ----- */
@@ -431,9 +431,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   RowSum(handle, a2, hiddenSize, numberOfExamples, 
           1/(double)numberOfExamples,rho);
-
+/*
   PrintReturnedMat(hiddenSize, 1, rho);
-/**/
+*/
 	/* ------------------------ */
 	/* --- Back Propagation --- */
 	/* ------------------------ */
@@ -467,11 +467,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	CompDelta(handle,W2,a2, hiddenSize, numberOfExamples, visibleSize,
             rho, sparsityParam, beta, delta3, delta2);
-
+  
+  cudaFree(y);
 //  PrintReturnedMat(1, numberOfExamples, partCost);
 
-  PrintReturnedMat(hiddenSize, numberOfExamples, delta2);
-  PrintReturnedMat(visibleSize, numberOfExamples, delta3);
+//  PrintReturnedMat(hiddenSize, numberOfExamples, delta2);
+//  PrintReturnedMat(visibleSize, numberOfExamples, delta3);
 
 	/* ----------------------------------- */
 	/* ----- Compute Error Gradients ----- */
@@ -499,6 +500,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 							 hiddenSize, numberOfExamples, &a, delta3, 
 							 visibleSize, a2, hiddenSize, &b, DW2, visibleSize);
 
+  cudaFree(x);
 
 	// temporary matrix to compute sum of delta
 	double *onesVec;
@@ -511,8 +513,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	dim3 onesGrid1(gridsize,1);
 
 
-  PrintReturnedMat(hiddenSize, visibleSize, DW1);
-  PrintReturnedMat(visibleSize, hiddenSize, DW2);
+//  PrintReturnedMat(hiddenSize, visibleSize, DW1);
+//  PrintReturnedMat(visibleSize, hiddenSize, DW2);
 
 	// print information for debugging
 
@@ -541,8 +543,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	cudaFree(onesVec);
 
-  PrintReturnedMat(hiddenSize, 1, Db1);
-  PrintReturnedMat(visibleSize, 1, Db2);
+//  PrintReturnedMat(hiddenSize, 1, Db1);
+//  PrintReturnedMat(visibleSize, 1, Db2);
 
 	/* ------------------------ */
 	/* ----- Compute Cost ----- */
@@ -602,10 +604,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	cudaStat = cudaMalloc((void**)&rowSumW1, hiddenSize*sizeof(double));
 	cudaStat = cudaMalloc((void**)&rowSumW2, visibleSize*sizeof(double));
 
-	RowSum(handle, sqrW2, visibleSize, hiddenSize, 1.0, rowSumW2);
-  PrintReturnedMat(visibleSize, 1, rowSumW2);
 	RowSum(handle, sqrW1, hiddenSize, visibleSize, 1.0, rowSumW1);
+	RowSum(handle, sqrW2, visibleSize, hiddenSize, 1.0, rowSumW2);
+
 //  PrintReturnedMat(hiddenSize, 1, rowSumW1);
+//  PrintReturnedMat(visibleSize, 1, rowSumW2);
 
 /*
   PrintReturnedMat(hiddenSize, 1, rowSumW1);
@@ -745,12 +748,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   PrintHostMat(visibleSize, hiddenSize, hostDW2);
   PrintHostMat(hiddenSize, 1, hostDb1);
   PrintHostMat(visibleSize, 1, hostDb2);
-*/
+
   PrintHostMat(hiddenSize, visibleSize, hostW1grad);
   PrintHostMat(visibleSize, hiddenSize, hostW2grad);
   PrintHostMat(hiddenSize, 1, hostb1grad);
   PrintHostMat(visibleSize, 1, hostb2grad);
-
+*/
 
 
 	/* --------------------------------------------------- */
@@ -847,7 +850,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	/* ----- Free allocated memory ----- */
 	/* --------------------------------- */
 
-
+/*
   if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
     printf("ERROR while trying to get information about device's memory.\n");
   } else {
@@ -856,12 +859,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
            totalCudaMem, freeCudaMem); 
     printf("--------------------------------------------------------------\n");
   }
-/**/
+*/
 	cublasDestroy(handle);
 	  
 	cudaFree(W1); cudaFree(W2); cudaFree(b1); cudaFree(b2);
 	cudaFree(DW1); cudaFree(DW2); cudaFree(Db1); cudaFree(Db2);
-	cudaFree(y); cudaFree(a1); cudaFree(a2); cudaFree(a3);
+	//cudaFree(y); cudaFree(x); 
+  cudaFree(a2); cudaFree(a3);
 
   cudaFree(rho);
 

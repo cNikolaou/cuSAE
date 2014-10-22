@@ -10,7 +10,7 @@ close all force;
 
 system(sprintf('make clean; make'));
 
-tic;
+%tic;
 
 %%======================================================================
 %% STEP 0: Parameters values
@@ -58,10 +58,10 @@ patches = sampleIMAGES(patchsize, numpatches);
 %
 % Uncomment these lines if there is a need for gradient checking (Step 3)
 % (faster version for gradient checking)
-%
-visibleSize = 250;
+%{
+visibleSize = 100;
 patches = patches(1:visibleSize,1:100);
-hiddenSize = 4;
+hiddenSize = 40;
 %}
 
 % For Gradient checking (second choice - slower)
@@ -73,7 +73,7 @@ hiddenSize = 2;
 
 
 %  Obtain random parameters theta
-rng(0);
+%rng(0);
 theta = initializeParameters(hiddenSize, visibleSize);
 
 % For testing pursposes
@@ -94,9 +94,9 @@ theta = initializeParameters(hiddenSize, visibleSize);
                                      sparsityParam, beta, patches);
 
 
-disp(grad);
+%disp(grad);
 %disp([[1:length(grad)]' grad]);
-cost
+%cost
 %display('End cost');
 %
 %{
@@ -139,10 +139,11 @@ disp(diff); % Should be small. In our implementation, these values are
 %
 %  Start training your sparse autoencoder with minFunc (L-BFGS).
 %
-%{
+%
+tic
 %  Randomly initialize the parameters
 theta = initializeParameters(hiddenSize, visibleSize);
-display('Before LBFGS');
+
 %  Use minFunc to minimize the function
 %
 addpath minFunc/
@@ -154,13 +155,14 @@ options.Method = 'lbfgs'; % Here, we use L-BFGS to optimize our cost
 options.maxIter = 400;	  % Maximum number of iterations of L-BFGS to run 
 options.display = 'on';
 
-display('Ready for LBFGS');
+
 [opttheta, cost] = minFunc( @(p) sparseAutoencoderCost(p, ...
                                    visibleSize, hiddenSize, ...
                                    lambda, sparsityParam, ...
                                    beta, patches), ...
                               theta, options);
 %}
+toc
 
 %{
 %  Testing code it may not be needed. 
@@ -172,7 +174,7 @@ display('Ready for LBFGS');
 				theta, options);
 %}
 
-%{
+%
 %%======================================================================
 %% STEP 5: Visualization 
 
@@ -187,4 +189,4 @@ fname = ['weights-' date(1:6) '.jpg'];
 print -djpeg weights.jpg   % save the visualization to a file 
 
 %}
-toc
+%toc

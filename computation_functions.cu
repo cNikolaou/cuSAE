@@ -399,13 +399,13 @@ void squareMatrix(const double *mat, const int m, const int n,
 	dim3 sqrGrid(gridsize,1);
 	squareElement<<<sqrGrid, sqrBlock>>>(mat, numberOfElements, matSqr);
 
-};
+}
 
 void RowSum(const cublasHandle_t handle, const double *mat, 
             const int m, const int n, const double scale, double *sum) {
 
 
-  
+/*
   size_t freeCudaMem, totalCudaMem;
   
   if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
@@ -415,8 +415,8 @@ void RowSum(const cublasHandle_t handle, const double *mat,
            totalCudaMem, freeCudaMem);  
   }
 
-  printf("Try to allocate: %d bytes\n", n);
-
+  printf("Try to allocate: %d bytes in RowSum\n", n);
+*/
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
 
@@ -461,7 +461,18 @@ void RowSum(const cublasHandle_t handle, const double *mat,
 
 void ColSum(const cublasHandle_t handle, const double *mat, 
             const int m, const int n, const double scale, double *sum) {
+/*
+  size_t freeCudaMem, totalCudaMem;
+  
+  if (cudaSuccess != cudaMemGetInfo(&freeCudaMem, &totalCudaMem)) {
+    printf("ERROR while trying to get information about device's memory.\n");
+  } else {
+    printf("Device total memory: %zd \tDevice free memory: %zd\n",
+           totalCudaMem, freeCudaMem);  
+  }
 
+  printf("Try to allocate: %d bytes in ColSum\n", m);
+*/
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
 
