@@ -52,30 +52,7 @@ __global__ void ComputeAbsDiff(const double *hx, const double *y, int N,
 }
 
 
-__global__ void CompDelta3(const double *y, const double *a3, int length, 
-						   double *delta3) {
-
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (index < length) {
-		// the order of computations mught have an impact on the final outcome
-    // the last term is a smaller number than the other two so it is 
-    // multiplied after the first to (between 0 and 1) number are multiplied
-    // so they are closer in scale
-    delta3[index] = -a3[index]*(1-a3[index])*(y[index]-a3[index]);
-  }
-}
-
-
-__global__ void CompDelta(const double *a2, int N, double *delta) {
-
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (index < N)
-		delta[index] = delta[index] * a2[index] * (1-a2[index]); 
-}
-
-
+// Set all vectors values to one
 __global__ void SetOnes(int length, double *ones) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -86,6 +63,7 @@ __global__ void SetOnes(int length, double *ones) {
 }
 
 
+// Set all vectors values to zero
 __global__ void SetZeros(int length, double *zeros) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -96,6 +74,7 @@ __global__ void SetZeros(int length, double *zeros) {
 }
 
 
+// Square each element
 __global__ void squareElement(const double *mat, const int numberOfElements,
                               double *matSqr) {
 
@@ -236,6 +215,21 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 }
 
 
+__global__ void CompDelta3(const double *y, const double *a3, int length, 
+						   double *delta3) {
+
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (index < length) {
+		// the order of computations mught have an impact on the final outcome
+    // the last term is a smaller number than the other two so it is 
+    // multiplied after the first to (between 0 and 1) number are multiplied
+    // so they are closer in scale
+    delta3[index] = -a3[index]*(1-a3[index])*(y[index]-a3[index]);
+  }
+}
+
+
 // Compute the error gradient delta2
 __global__ void CompDelta2(const double sparsityParam,
                             const double *rho,
@@ -256,11 +250,37 @@ __global__ void CompDelta2(const double sparsityParam,
 
 
 // Compute the error gradient delta
-void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
+void CompDelta(cublasHandle_t handle, const double *y, const double *a3,
+         const double *W2, const double *a2, 
 			   int hiddenSize, int numberOfExamples, int visibleSize, 
-         const double *rho, const double sparsityParam, 
-         const double beta, const double *delta3, 
-         double *delta2) {
+         const double *rho, const double sparsityParam, const double beta, 
+         double *delta3, double *delta2) {
+
+	/* --------------------------- */
+	/* ----- Compute delta 3 ----- */
+	/* --------------------------- */
+
+	int gridsized3 = 1;
+
+	// Comput delta
+	dim3 delta3Block(blocksize, 1);
+	gridsized3 = (int) (visibleSize*numberOfExamples/blocksize + 1);
+	dim3 delta3Grid(gridsized3, 1);
+
+	// Print information that might be usefull
+/*
+	printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
+												visibleSize*numberOfExamples);
+*/
+
+  int N_3 = visibleSize*numberOfExamples;
+
+  CompDelta3<<<delta3Grid,delta3Block>>>(y, a3, N_3, delta3);
+
+
+	/* --------------------------- */
+	/* ----- Compute delta 2 ----- */
+	/* --------------------------- */
 
   double a = 1.0;
 	double b = 0.0;
@@ -270,8 +290,8 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 				delta2, hiddenSize);
   
   dim3 delta2Block(hiddenSize, 1);
-  int gridsize = numberOfExamples;
-  dim3 delta2Grid(gridsize, 1);
+  int gridsized2 = numberOfExamples;
+  dim3 delta2Grid(gridsized2, 1);
 
   // no need to use it; just in case something changes
   int N_2 = numberOfExamples*hiddenSize;

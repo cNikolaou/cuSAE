@@ -138,7 +138,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 	plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL);
 	plhs[1] = mxCreateDoubleMatrix(thetaLength, 1, mxREAL);
 
-  // CHCK THAT
 	matCost = (double*)mxGetPr(plhs[0]);
 	matGradVec = (double*)mxGetPr(plhs[1]);	
 
@@ -159,7 +158,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 /*
   SetInputVars(thetaLength, numberOfExamples, visibleSize, theta, data);
 */
-	int i,j;
+	int i;
 
 	// print matrices for debugging purposes
 /*
@@ -398,22 +397,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	ComputePartCost(handle,a3,y,visibleSize,numberOfExamples,partCost);
 
-	int gridsize = 1;
 
-	// Comput delta
-	dim3 d3Block(blocksize, 1);
-	gridsize = (int) (visibleSize*numberOfExamples/blocksize + 1);
-	dim3 dimGrid(gridsize, 1);
-/*	*/
-	// Print information that might be usefull
-/*
-	printf("Create block with %d threads: visibleSize*numberOfExamples\n", 
-												visibleSize*numberOfExamples);
-*/
-
-  CompDelta3<<<dimGrid,d3Block>>>(y,a3,visibleSize*numberOfExamples,delta3);
-
-	CompDelta(handle,W2,a2, hiddenSize, numberOfExamples, visibleSize,
+	CompDelta(handle, y, a3, W2, a2, hiddenSize, numberOfExamples, visibleSize,
             rho, sparsityParam, beta, delta3, delta2);
   
   cudaFree(y);
@@ -460,6 +445,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 	// compute Db1 = sum(delta2,2)
 	cudaStat = cudaMalloc((void**)&onesVec, numberOfExamples*sizeof(double));
+  
+  int gridsize = 1;
 
 	dim3 onesBlock1(blocksize, 1);
 	gridsize = (int) (numberOfExamples/blocksize + 1);
