@@ -7,16 +7,9 @@ function numgrad = computeNumericalGradient(J, theta)
 % Initialize numgrad with zeros
 numgrad = zeros(size(theta));
 
-%% ---------- YOUR CODE HERE --------------------------------------
-% Instructions: 
-% Implement numerical gradient checking, and return the result in numgrad.  
-% (See Section 2.3 of the lecture notes.)
-% You should write code so that numgrad(i) is (the numerical approximation to) the 
-% partial derivative of J with respect to the i-th input argument, evaluated at theta.  
-% I.e., numgrad(i) should be the (approximately) the partial derivative of J with 
-% respect to theta(i).
-%                
-% Hint: You will probably want to compute the elements of numgrad one at a time. 
+% Compute numerical gradient checking, and return the result in numgrad.
+% The numerical gradient is computed from the mathematical definition of the
+% derivative.
 
 paramNum = length(theta);
 
@@ -31,6 +24,4 @@ for i = 1:paramNum
     
 end
 
-
-%% ---------------------------------------------------------------
 end
