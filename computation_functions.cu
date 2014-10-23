@@ -27,6 +27,8 @@
 // global variables
 const int blocksize = 512;
 
+
+// compute sigmoid activation for each element
 __global__ void Sigmoid(const double *a, const int numberOfElements, 
 						double *sa) {
 
@@ -37,6 +39,9 @@ __global__ void Sigmoid(const double *a, const int numberOfElements,
 
 }
 
+
+// function to compute the difference between networks output and
+// the desired output
 __global__ void ComputeAbsDiff(const double *hx, const double *y, int N, 
 							   double *diff) {
 	
@@ -45,6 +50,7 @@ __global__ void ComputeAbsDiff(const double *hx, const double *y, int N,
 	if (index < N)
 		diff[index] = pow(abs(hx[index]-y[index]),2);
 }
+
 
 __global__ void CompDelta3(const double *y, const double *a3, int length, 
 						   double *delta3) {
@@ -60,6 +66,7 @@ __global__ void CompDelta3(const double *y, const double *a3, int length,
   }
 }
 
+
 __global__ void CompDelta(const double *a2, int N, double *delta) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -67,6 +74,7 @@ __global__ void CompDelta(const double *a2, int N, double *delta) {
 	if (index < N)
 		delta[index] = delta[index] * a2[index] * (1-a2[index]); 
 }
+
 
 __global__ void SetOnes(int length, double *ones) {
 
@@ -77,6 +85,7 @@ __global__ void SetOnes(int length, double *ones) {
 
 }
 
+
 __global__ void SetZeros(int length, double *zeros) {
 
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -85,6 +94,8 @@ __global__ void SetZeros(int length, double *zeros) {
 		zeros[index] = 0.0;
 
 }
+
+
 __global__ void squareElement(const double *mat, const int numberOfElements,
                               double *matSqr) {
 
@@ -95,6 +106,10 @@ __global__ void squareElement(const double *mat, const int numberOfElements,
   }
 
 }
+
+
+// Compute the sigmoid activation of the matrix z and place it into matrix a
+// N is the number of total elements in  matrix z.
 void ComputeSigmoid(const double *z, int N, double *a) {
 
 	// set a2 = sigmoid(z2)
@@ -105,6 +120,10 @@ void ComputeSigmoid(const double *z, int N, double *a) {
 	Sigmoid<<<dimGrid, dimBlock>>>(z, N, a);
 
 }
+
+
+// Repeat the host vector b for numberOfCols times, resulting to
+// z (numberOfRows x numberOfCols) matrix
 void SetRepMat(const double *b, const int numberOfRows, 
                const int numberOfCols, double *z) {
 	
@@ -129,6 +148,9 @@ void SetRepMat(const double *b, const int numberOfRows,
 	free(temp);
 }
 
+
+// Repeat the device vector b for numberOfCols times, resulting to
+// z (numberOfRows x numberOfCols) matrix
 void DevRepMat(const cublasHandle_t handle,
                const double *b, const int numberOfRows,
                const int numberOfCols, double *z) {
@@ -150,6 +172,8 @@ void DevRepMat(const cublasHandle_t handle,
   
 }
 
+
+// Compute the first part of the cost
 void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y, 
 					 int numberOfRows, int numberOfCols, double *partCost) {
 
@@ -163,8 +187,11 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 	dim3 dimBlock(blocksize,1);
 	int gridsize = (int) (N/blocksize + 1);
 	dim3 dimGrid(gridsize,1);
-	//printf("Create block with %d threads : N (in computePartCost)\n", N);
-	ComputeAbsDiff<<<dimGrid, dimBlock>>>(hx, y, N, diff);
+
+  //for debugging 
+//  printf("Create block with %d threads : N (in computePartCost)\n", N);
+	
+  ComputeAbsDiff<<<dimGrid, dimBlock>>>(hx, y, N, diff);
 	
 //	printf("\nPrint matrix abs(hx-y).^2\n");
 //	PrintReturnedMat(numberOfRows, numberOfCols, diff);
@@ -174,14 +201,18 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 
 	double *onesVec;
 	cudaMalloc((void**)&onesVec, numberOfRows*sizeof(double));
-
-	dim3 onesBlock(blocksize, 1);
-	//printf("Create block with %d threads : numberOfRows (computePartCost)\n"
+  
+  dim3 onesBlock(blocksize, 1);
+	
+  //printf("Create block with %d threads : numberOfRows (computePartCost)\n"
 	//		, numberOfRows);
 	gridsize = (int) (numberOfRows/blocksize + 1);
 	dim3 onesGrid(gridsize, 1);
-	SetOnes<<<onesGrid, onesBlock>>>(numberOfRows,onesVec);
+	
+  
+  SetOnes<<<onesGrid, onesBlock>>>(numberOfRows,onesVec);
 
+  // for debugging
 //	printReturnedMat(numberOfRows, 1, onesVec);
 
 
@@ -193,7 +224,7 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 //	dim3 zerosBlock(numberOfCols,1);
 //	setZeros<<<dimGrid, zerosBlock>>>(partCost, numberOfCols);
 
-  //CHECK THIS!!!!
+
 	cublasDgemv(handle, CUBLAS_OP_T, numberOfRows, numberOfCols, 
 				&a, diff, numberOfRows, onesVec, 1, &b,
 				partCost, 1);	
@@ -204,20 +235,8 @@ void ComputePartCost(cublasHandle_t handle, const double *hx, const double *y,
 	cudaFree(onesVec);
 }
 
-__global__ void CompDeltaSecondTerm(const double sparsityParam,
-                                    const double *rho,
-                                    const int N, const double beta,
-                                    double *secondTerm) {
 
-  int idx = threadIdx.x + blockIdx.x*blockDim.x;
-
-  if (idx < N) {
-    secondTerm[idx] = beta*(-sparsityParam/rho[idx] +
-                          (1 - sparsityParam)/(1 - rho[idx])); 
-  }
-
-}
-
+// Compute the error gradient delta2
 __global__ void CompDelta2(const double sparsityParam,
                             const double *rho,
                             const int N, const double beta,
@@ -235,60 +254,8 @@ __global__ void CompDelta2(const double sparsityParam,
 
 }
 
-/*
-void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
-			   int hiddenSize, int numberOfExamples, int visibleSize, 
-         const double *rho, const double sparsityParam, 
-         const double beta, const double *delta3, 
-         double *delta2) {
 
-  //repmat(beta*(-sparsityParam./rho + (1-sparsityParam)./(1-rho)),1,m)).*a2.*(1-a2); 
-  
-  // Compute the second term
-  //-sparsityParam./rho + (1-sparsityParam)./(1-rho)
-
-  double *temp;
-
-  if (cudaSuccess != cudaMalloc((void**)&temp, hiddenSize*sizeof(double))) {
-    printf("ERROR in allocating space for temp vector. In CompDelta.\n");
-  }
-
-  dim3 dimBlockSecondTerm(blocksize, 1); 
-  int gridsize_2 = (int) (hiddenSize/blocksize + 1);
-  dim3 dimGridSecondTerm(gridsize_2, 1);
-
-  CompDeltaSecondTerm<<<dimGridSecondTerm, dimBlockSecondTerm>>>
-                      (sparsityParam, rho, hiddenSize, beta, temp);
-  
-//  PrintReturnedMat(hiddenSize, 1, temp);
-
-  DevRepMat(handle, temp, hiddenSize, numberOfExamples, delta2);
-
-  cudaFree(temp);
-
-//  PrintReturnedMat(hiddenSize, 10, delta2);
-*/
-/**/
-	// compute W2'*delta3	
-/*	double a = 1.0;
-	double b = 1.0;
-
-	cublasDgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, hiddenSize, numberOfExamples, 
-				visibleSize, &a, W2, visibleSize, delta3, visibleSize, &b, 
-				delta2, hiddenSize);
-
-	int N = hiddenSize * numberOfExamples;
-
-	dim3 dimBlockFirstTerm(blocksize, 1);
-	int gridsize_1 = (int) (N/blocksize + 1);
-	dim3 dimGridFirstTerm(gridsize_1, 1);
-	//printf("Create block with %d threads : N in compDelta\n", N);
-	CompDelta<<<dimGridFirstTerm,dimBlockFirstTerm>>>(a2, N, delta2);
-
-
-}
-*/
-
+// Compute the error gradient delta
 void CompDelta(cublasHandle_t handle, const double *W2, const double *a2, 
 			   int hiddenSize, int numberOfExamples, int visibleSize, 
          const double *rho, const double sparsityParam, 
@@ -315,6 +282,9 @@ void CompDelta(cublasHandle_t handle, const double *W2, const double *a2,
 }
 
 
+// Compute the parameter gradient matrix Wgrad from the
+// error gradient matrix DW
+// in MATLAB: Wgrad = 1/m * DW + lambda * W
 void CompWgrad(const double *DW, const int numberOfRows, 
                const int numberOfCols, const int m, const double lambda, 
                const double *W, double *Wgrad) {
@@ -340,6 +310,10 @@ void CompWgrad(const double *DW, const int numberOfRows,
 	}
 }
 
+
+// Compute the parameter gradient vector bgrad from the
+// error gradient vector Db
+// in MATLAB: bgrad = 1/m * Db
 void Compbgrad(const double *Db, const int numberOfRows, const int m, 
                double *bgrad) {
 
@@ -351,6 +325,8 @@ void Compbgrad(const double *Db, const int numberOfRows, const int m,
 
 }
 
+
+// Compute KL divergence for each element
 __global__ void CompPartKL(const double sparsityParam, const double *rho,
                            const int rho_size, double *temp) {
   
@@ -364,6 +340,7 @@ __global__ void CompPartKL(const double sparsityParam, const double *rho,
 }
 
 
+// Compute the KL divergence between sparsityParam and rho matrix
 void CompKL(const cublasHandle_t handle,
             const double sparsityParam, const double *rho, 
             const int rho_size, double *kl) {
@@ -381,6 +358,7 @@ void CompKL(const cublasHandle_t handle,
   
   ColSum(handle, temp, rho_size, 1, 1.0, deviceKL);
 
+  // for debugging
 //  PrintReturnedMat(1, 1, deviceKL);
 
   cudaMemcpy(kl, deviceKL, sizeof(double), cudaMemcpyDeviceToHost);
@@ -389,6 +367,8 @@ void CompKL(const cublasHandle_t handle,
   
 }
 
+
+// Compute the square matrix of mat and return it through matSqr
 void squareMatrix(const double *mat, const int m, const int n, 
                   double *matSqr) {
 
@@ -401,10 +381,14 @@ void squareMatrix(const double *mat, const int m, const int n,
 
 }
 
+
+// Compute the sum for each row of mat, resulting to a column matrix
+// (or vector) sum. Multiply the summation by "scale"
 void RowSum(const cublasHandle_t handle, const double *mat, 
             const int m, const int n, const double scale, double *sum) {
 
 
+  // Print GPU information for debugging purposes
 /*
   size_t freeCudaMem, totalCudaMem;
   
@@ -417,6 +401,8 @@ void RowSum(const cublasHandle_t handle, const double *mat,
 
   printf("Try to allocate: %d bytes in RowSum\n", n);
 */
+
+
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
 
@@ -459,8 +445,14 @@ void RowSum(const cublasHandle_t handle, const double *mat,
   cudaFree(onesVec);
 }
 
+
+// Compute the sum for each column of mat, resulting to a row matrix
+// (or vector) sum. Multiply the summation by "scale"
 void ColSum(const cublasHandle_t handle, const double *mat, 
             const int m, const int n, const double scale, double *sum) {
+
+
+  // Print GPU information for debugging purposes
 /*
   size_t freeCudaMem, totalCudaMem;
   
@@ -473,6 +465,8 @@ void ColSum(const cublasHandle_t handle, const double *mat,
 
   printf("Try to allocate: %d bytes in ColSum\n", m);
 */
+
+
 	cudaError_t cudaStat;
 	cublasStatus_t cublasStat;
 
@@ -520,6 +514,8 @@ void ColSum(const cublasHandle_t handle, const double *mat,
   cudaFree(onesVec);
 }
 
+
+// Print CPU's matrix
 void PrintHostMat(int numberOfRows, int numberOfCols,
                   const double *hostMat) {
   
@@ -535,6 +531,8 @@ void PrintHostMat(int numberOfRows, int numberOfCols,
 
 }
 
+
+// Print GPU's matrix
 void PrintReturnedMat(int numberOfRows, int numberOfCols, 
 					            const double *deviceMat) {
 
@@ -553,6 +551,3 @@ void PrintReturnedMat(int numberOfRows, int numberOfCols,
 
 	free(ret);
 }
-
-
-
